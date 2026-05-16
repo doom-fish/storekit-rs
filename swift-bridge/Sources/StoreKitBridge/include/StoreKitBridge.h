@@ -1,0 +1,3 @@
+#ifndef STOREKIT_BRIDGE_H
+#define STOREKIT_BRIDGE_H
+#endif
