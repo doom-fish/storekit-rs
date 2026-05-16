@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import StoreKit
 
@@ -19,6 +20,11 @@ private let skDateFormatter: ISO8601DateFormatter = {
 @inline(__always)
 func skCString(_ string: String) -> UnsafeMutablePointer<CChar>? {
     string.withCString { strdup($0) }
+}
+
+@inline(__always)
+func skDataBase64(_ data: Data) -> String {
+    data.base64EncodedString()
 }
 
 @inline(__always)
@@ -88,56 +94,6 @@ struct SKVerificationErrorPayload: Codable {
         self.code = code
         self.localizedDescription = localizedDescription
     }
-}
-
-struct SKSubscriptionPeriodPayload: Codable {
-    let unit: String
-    let value: Int
-}
-
-struct SKSubscriptionInfoPayload: Codable {
-    let subscriptionGroupID: String
-    let subscriptionPeriod: SKSubscriptionPeriodPayload
-}
-
-struct SKProductPayload: Codable {
-    let id: String
-    let displayName: String
-    let description: String
-    let price: String
-    let displayPrice: String
-    let type: String
-    let subscription: SKSubscriptionInfoPayload?
-}
-
-struct SKTransactionPayload: Codable {
-    let id: UInt64
-    let originalID: UInt64
-    let webOrderLineItemID: String?
-    let productID: String
-    let subscriptionGroupID: String?
-    let appBundleID: String
-    let purchaseDate: String
-    let originalPurchaseDate: String
-    let expirationDate: String?
-    let purchasedQuantity: UInt64
-    let isUpgraded: Bool
-    let ownershipType: String
-    let signedDate: String
-    let jwsRepresentation: String
-    let verificationError: SKVerificationErrorPayload?
-}
-
-struct SKPurchaseOptionPayload: Codable {
-    let kind: String
-    let appAccountToken: String?
-    let quantity: Int?
-    let simulateAskToBuyInSandbox: Bool?
-}
-
-struct SKPurchaseResultPayload: Codable {
-    let kind: String
-    let transaction: SKTransactionPayload?
 }
 
 func skStatus(for error: Error) -> Int32 {
@@ -281,139 +237,9 @@ func skFormatDate(_ date: Date) -> String {
     skDateFormatter.string(from: date)
 }
 
-func skProductTypeName(_ type: Product.ProductType) -> String {
-    switch type {
-    case .consumable:
-        return "consumable"
-    case .nonConsumable:
-        return "nonConsumable"
-    case .autoRenewable:
-        return "autoRenewable"
-    case .nonRenewable:
-        return "nonRenewing"
-    default:
-        return type.rawValue
-    }
-}
-
-func skOwnershipTypeName(_ type: Transaction.OwnershipType) -> String {
-    switch type {
-    case .purchased:
-        return "purchased"
-    case .familyShared:
-        return "familyShared"
-    default:
-        return type.rawValue
-    }
-}
-
-func skSubscriptionPeriodPayload(from period: Product.SubscriptionPeriod) -> SKSubscriptionPeriodPayload {
-    let unit: String
-    switch period.unit {
-    case .day:
-        unit = "day"
-    case .week:
-        unit = "week"
-    case .month:
-        unit = "month"
-    case .year:
-        unit = "year"
-    @unknown default:
-        unit = "unknown"
-    }
-    return SKSubscriptionPeriodPayload(unit: unit, value: period.value)
-}
-
-func skSubscriptionInfoPayload(from info: Product.SubscriptionInfo) -> SKSubscriptionInfoPayload {
-    SKSubscriptionInfoPayload(
-        subscriptionGroupID: info.subscriptionGroupID,
-        subscriptionPeriod: skSubscriptionPeriodPayload(from: info.subscriptionPeriod)
-    )
-}
-
-func skProductPayload(from product: Product) -> SKProductPayload {
-    SKProductPayload(
-        id: product.id,
-        displayName: product.displayName,
-        description: product.description,
-        price: NSDecimalNumber(decimal: product.price).stringValue,
-        displayPrice: product.displayPrice,
-        type: skProductTypeName(product.type),
-        subscription: product.subscription.map(skSubscriptionInfoPayload(from:))
-    )
-}
-
-func skVerificationErrorCode(_ error: StoreKit.VerificationResult<Transaction>.VerificationError) -> String {
-    switch error {
-    case .revokedCertificate:
-        return "revokedCertificate"
-    case .invalidCertificateChain:
-        return "invalidCertificateChain"
-    case .invalidDeviceVerification:
-        return "invalidDeviceVerification"
-    case .invalidEncoding:
-        return "invalidEncoding"
-    case .invalidSignature:
-        return "invalidSignature"
-    case .missingRequiredProperties:
-        return "missingRequiredProperties"
-    @unknown default:
-        return "unknown"
-    }
-}
-
-func skTransactionPayload(from result: VerificationResult<Transaction>) -> SKTransactionPayload {
-    let transaction = result.unsafePayloadValue
-    let verificationError: SKVerificationErrorPayload?
-    switch result {
-    case .verified:
-        verificationError = nil
-    case .unverified(_, let error):
-        verificationError = SKVerificationErrorPayload(
-            code: skVerificationErrorCode(error),
-            localizedDescription: error.localizedDescription
-        )
-    }
-    return SKTransactionPayload(
-        id: transaction.id,
-        originalID: transaction.originalID,
-        webOrderLineItemID: transaction.webOrderLineItemID,
-        productID: transaction.productID,
-        subscriptionGroupID: transaction.subscriptionGroupID,
-        appBundleID: transaction.appBundleID,
-        purchaseDate: skFormatDate(transaction.purchaseDate),
-        originalPurchaseDate: skFormatDate(transaction.originalPurchaseDate),
-        expirationDate: transaction.expirationDate.map(skFormatDate),
-        purchasedQuantity: UInt64(transaction.purchasedQuantity),
-        isUpgraded: transaction.isUpgraded,
-        ownershipType: skOwnershipTypeName(transaction.ownershipType),
-        signedDate: skFormatDate(result.signedDate),
-        jwsRepresentation: result.jwsRepresentation,
-        verificationError: verificationError
-    )
-}
-
-func skBuildPurchaseOptions(from payloads: [SKPurchaseOptionPayload]) throws -> Set<Product.PurchaseOption> {
-    var options = Set<Product.PurchaseOption>()
-    for payload in payloads {
-        switch payload.kind {
-        case "appAccountToken":
-            guard let token = payload.appAccountToken,
-                  let uuid = UUID(uuidString: token)
-            else {
-                throw SKBridgeError.invalidArgument("purchase option appAccountToken requires a valid UUID")
-            }
-            options.insert(.appAccountToken(uuid))
-        case "quantity":
-            guard let quantity = payload.quantity else {
-                throw SKBridgeError.invalidArgument("purchase option quantity requires an integer value")
-            }
-            options.insert(.quantity(quantity))
-        case "simulatesAskToBuyInSandbox":
-            options.insert(.simulatesAskToBuyInSandbox(payload.simulateAskToBuyInSandbox ?? false))
-        default:
-            throw SKBridgeError.invalidArgument("unsupported purchase option kind '\(payload.kind)'")
-        }
-    }
-    return options
+func skKeyWindowController() -> NSViewController? {
+    let windows = NSApplication.shared.windows
+    return windows.first(where: { $0.isKeyWindow })?.contentViewController
+        ?? windows.first(where: { $0.isVisible })?.contentViewController
+        ?? windows.first?.contentViewController
 }

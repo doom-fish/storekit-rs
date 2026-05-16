@@ -4,6 +4,8 @@ use core::ffi::c_char;
 use std::ffi::{CStr, CString};
 use std::time::Duration;
 
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
+use base64::Engine as _;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -49,6 +51,17 @@ pub unsafe fn parse_json_ptr<T: DeserializeOwned>(
     })
 }
 
+pub unsafe fn parse_optional_json_ptr<T: DeserializeOwned>(
+    ptr: *mut c_char,
+    context: &str,
+) -> Result<Option<T>, StoreKitError> {
+    if ptr.is_null() {
+        Ok(None)
+    } else {
+        parse_json_ptr(ptr, context).map(Some)
+    }
+}
+
 pub unsafe fn error_from_status(status: i32, err_msg: *mut c_char) -> StoreKitError {
     crate::error::from_swift(status, err_msg)
 }
@@ -56,4 +69,16 @@ pub unsafe fn error_from_status(status: i32, err_msg: *mut c_char) -> StoreKitEr
 pub fn duration_to_timeout_ms(duration: Duration) -> u32 {
     let millis = duration.as_millis();
     u32::try_from(millis).unwrap_or(u32::MAX)
+}
+
+pub fn decode_base64(value: &str, context: &str) -> Result<Vec<u8>, StoreKitError> {
+    STANDARD.decode(value).map_err(|error| {
+        StoreKitError::InvalidArgument(format!("invalid base64 in {context}: {error}"))
+    })
+}
+
+pub fn decode_base64_urlsafe(value: &str, context: &str) -> Result<Vec<u8>, StoreKitError> {
+    URL_SAFE_NO_PAD.decode(value).map_err(|error| {
+        StoreKitError::InvalidArgument(format!("invalid base64url payload in {context}: {error}"))
+    })
 }

@@ -133,7 +133,8 @@ pub(crate) unsafe fn from_swift(status: i32, err_msg: *mut c_char) -> StoreKitEr
         ffi::status::FRAMEWORK_ERROR => parse_framework_error(message),
         ffi::status::VERIFICATION_ERROR => parse_verification_error(message),
         _ => StoreKitError::Unknown(
-            message.unwrap_or_else(|| format!("StoreKit bridge returned unexpected status {status}")),
+            message
+                .unwrap_or_else(|| format!("StoreKit bridge returned unexpected status {status}")),
         ),
     }
 }
@@ -184,9 +185,7 @@ fn parse_verification_error(message: Option<String>) -> StoreKitError {
                         localized_description: json,
                     })
                 },
-                |payload| {
-                    StoreKitError::Verification(VerificationFailure::from_payload(payload))
-                },
+                |payload| StoreKitError::Verification(VerificationFailure::from_payload(payload)),
             )
         },
     )

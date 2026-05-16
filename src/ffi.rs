@@ -20,7 +20,7 @@ extern "C" {
     ) -> i32;
 
     pub fn sk_transaction_stream_create(
-        kind: i32,
+        config_json: *const c_char,
         out_error_message: *mut *mut c_char,
     ) -> *mut c_void;
     pub fn sk_transaction_stream_release(stream: *mut c_void);
@@ -28,7 +28,7 @@ extern "C" {
         stream: *mut c_void,
         timeout_ms: u32,
         out_transaction: *mut *mut c_void,
-        out_transaction_json: *mut *mut c_char,
+        out_verification_json: *mut *mut c_char,
         out_error_message: *mut *mut c_char,
     ) -> i32;
 
@@ -42,9 +42,86 @@ extern "C" {
         transaction: *mut c_void,
         out_error_message: *mut *mut c_char,
     ) -> i32;
+    pub fn sk_transaction_latest_for(
+        product_id: *const c_char,
+        out_transaction: *mut *mut c_void,
+        out_result_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_transaction_current_entitlement_for(
+        product_id: *const c_char,
+        out_transaction: *mut *mut c_void,
+        out_result_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
 
+    pub fn sk_app_store_can_make_payments(
+        out_value: *mut i32,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_app_store_device_verification_id(
+        out_uuid: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
     pub fn sk_app_store_sync(out_error_message: *mut *mut c_char) -> i32;
     pub fn sk_app_store_show_manage_subscriptions(out_error_message: *mut *mut c_char) -> i32;
+    pub fn sk_app_store_request_review(out_error_message: *mut *mut c_char) -> i32;
+    pub fn sk_app_store_present_offer_code_redeem_sheet(out_error_message: *mut *mut c_char)
+        -> i32;
+
+    pub fn sk_storefront_current_json(
+        out_storefront_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_storefront_stream_create(out_error_message: *mut *mut c_char) -> *mut c_void;
+    pub fn sk_storefront_stream_release(stream: *mut c_void);
+    pub fn sk_storefront_stream_next(
+        stream: *mut c_void,
+        timeout_ms: u32,
+        out_storefront_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+
+    pub fn sk_subscription_info_is_eligible_for_intro_offer(
+        group_id: *const c_char,
+        out_value: *mut i32,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_subscription_info_statuses_json(
+        group_id: *const c_char,
+        out_statuses_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_subscription_info_status_for_transaction(
+        transaction_id: *const c_char,
+        out_status_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+
+    pub fn sk_app_transaction_shared(
+        out_result_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_app_transaction_refresh(
+        out_result_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+
+    pub fn sk_refund_begin_request_for_transaction_id(
+        transaction_id: *const c_char,
+        out_status: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+
+    pub fn sk_receipt_json(
+        out_receipt_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+
+    pub fn sk_store_context_json(
+        out_context_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
 }
 
 pub mod status {
@@ -56,10 +133,4 @@ pub mod status {
     pub const FRAMEWORK_ERROR: i32 = -4;
     pub const VERIFICATION_ERROR: i32 = -5;
     pub const UNKNOWN: i32 = -99;
-}
-
-pub mod stream_kind {
-    pub const ALL: i32 = 0;
-    pub const CURRENT_ENTITLEMENTS: i32 = 1;
-    pub const UPDATES: i32 = 2;
 }

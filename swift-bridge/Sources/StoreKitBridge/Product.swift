@@ -1,6 +1,56 @@
 import Foundation
 import StoreKit
 
+struct SKProductPayload: Codable {
+    let id: String
+    let displayName: String
+    let description: String
+    let price: String
+    let displayPrice: String
+    let type: String
+    let isFamilyShareable: Bool
+    let subscription: SKSubscriptionInfoPayload?
+    let currencyCode: String?
+    let priceLocaleIdentifier: String?
+    let jsonRepresentationBase64: String
+}
+
+struct SKPurchaseResultPayload: Codable {
+    let kind: String
+    let verificationResult: SKVerificationResultPayload<SKTransactionPayload>?
+}
+
+func skProductTypeName(_ type: Product.ProductType) -> String {
+    switch type {
+    case .consumable:
+        return "consumable"
+    case .nonConsumable:
+        return "nonConsumable"
+    case .autoRenewable:
+        return "autoRenewable"
+    case .nonRenewable:
+        return "nonRenewing"
+    default:
+        return type.rawValue
+    }
+}
+
+func skProductPayload(from product: Product) -> SKProductPayload {
+    SKProductPayload(
+        id: product.id,
+        displayName: product.displayName,
+        description: product.description,
+        price: NSDecimalNumber(decimal: product.price).stringValue,
+        displayPrice: product.displayPrice,
+        type: skProductTypeName(product.type),
+        isFamilyShareable: product.isFamilyShareable,
+        subscription: product.subscription.map(skSubscriptionInfoPayload(from:)),
+        currencyCode: nil,
+        priceLocaleIdentifier: nil,
+        jsonRepresentationBase64: skDataBase64(product.jsonRepresentation)
+    )
+}
+
 @_cdecl("sk_products_json")
 public func sk_products_json(
     _ identifiersJSON: UnsafePointer<CChar>?,
@@ -58,21 +108,26 @@ public func sk_product_purchase(
             guard let product = products.first else {
                 throw SKBridgeError.invalidArgument("product not found for identifier \(String(cString: productID))")
             }
-            let options = try skBuildPurchaseOptions(from: optionPayloads)
+            let options = try skBuildPurchaseOptions(from: optionPayloads, product: product)
             let result = try await product.purchase(options: options)
             switch result {
             case .success(let verificationResult):
                 let box = SKTransactionBox(result: verificationResult)
                 outTransaction?.pointee = sk_retain(box)
-                let payload = SKPurchaseResultPayload(
-                    kind: "success",
-                    transaction: box.payload
+                return try skEncodeJSON(
+                    SKPurchaseResultPayload(
+                        kind: "success",
+                        verificationResult: skTransactionVerificationResultPayload(from: verificationResult)
+                    )
                 )
-                return try skEncodeJSON(payload)
             case .userCancelled:
-                return try skEncodeJSON(SKPurchaseResultPayload(kind: "userCancelled", transaction: nil))
+                return try skEncodeJSON(
+                    SKPurchaseResultPayload(kind: "userCancelled", verificationResult: nil)
+                )
             case .pending:
-                return try skEncodeJSON(SKPurchaseResultPayload(kind: "pending", transaction: nil))
+                return try skEncodeJSON(
+                    SKPurchaseResultPayload(kind: "pending", verificationResult: nil)
+                )
             @unknown default:
                 throw SKBridgeError.unknown("StoreKit returned an unknown purchase result")
             }

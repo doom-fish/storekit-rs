@@ -3,41 +3,141 @@ use core::ptr;
 use std::ptr::NonNull;
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
+use crate::app_store::AppStoreEnvironment;
 use crate::error::{StoreKitError, VerificationFailure};
 use crate::ffi;
-use crate::private::{duration_to_timeout_ms, error_from_status, parse_json_ptr};
+use crate::private::{
+    cstring_from_str, decode_base64, duration_to_timeout_ms, error_from_status, json_cstring,
+    parse_json_ptr, parse_optional_json_ptr,
+};
+use crate::product::ProductType;
+use crate::refund::{Refund, RefundRequestStatus};
+use crate::storefront::{Storefront, StorefrontPayload};
+use crate::subscription::{SubscriptionPeriod, SubscriptionPeriodPayload};
+pub use crate::verification_result::VerificationResult;
 
-#[derive(Debug, Clone)]
-pub enum VerificationResult<T> {
-    Verified(T),
-    Unverified(T, VerificationFailure),
+use crate::verification_result::VerificationResultPayload;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TransactionReason {
+    Purchase,
+    Renewal,
+    Unknown(String),
 }
 
-impl<T> VerificationResult<T> {
-    pub const fn is_verified(&self) -> bool {
-        matches!(self, Self::Verified(_))
-    }
-
-    pub const fn payload(&self) -> &T {
+impl TransactionReason {
+    pub fn as_str(&self) -> &str {
         match self {
-            Self::Verified(payload) | Self::Unverified(payload, _) => payload,
+            Self::Purchase => "purchase",
+            Self::Renewal => "renewal",
+            Self::Unknown(value) => value.as_str(),
         }
     }
 
-    pub fn into_payload(self) -> T {
+    fn from_raw(raw: String) -> Self {
+        match raw.as_str() {
+            "purchase" => Self::Purchase,
+            "renewal" => Self::Renewal,
+            _ => Self::Unknown(raw),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RevocationReason {
+    DeveloperIssue,
+    Other,
+    Unknown(String),
+}
+
+impl RevocationReason {
+    pub fn as_str(&self) -> &str {
         match self {
-            Self::Verified(payload) | Self::Unverified(payload, _) => payload,
+            Self::DeveloperIssue => "developerIssue",
+            Self::Other => "other",
+            Self::Unknown(value) => value.as_str(),
         }
     }
 
-    pub const fn verification_failure(&self) -> Option<&VerificationFailure> {
-        match self {
-            Self::Verified(_) => None,
-            Self::Unverified(_, failure) => Some(failure),
+    fn from_raw(raw: String) -> Self {
+        match raw.as_str() {
+            "developerIssue" => Self::DeveloperIssue,
+            "other" => Self::Other,
+            _ => Self::Unknown(raw),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OfferType {
+    Introductory,
+    Promotional,
+    Code,
+    WinBack,
+    Unknown(String),
+}
+
+impl OfferType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Introductory => "introductory",
+            Self::Promotional => "promotional",
+            Self::Code => "code",
+            Self::WinBack => "winBack",
+            Self::Unknown(value) => value.as_str(),
+        }
+    }
+
+    fn from_raw(raw: String) -> Self {
+        match raw.as_str() {
+            "introductory" => Self::Introductory,
+            "promotional" => Self::Promotional,
+            "code" => Self::Code,
+            "winBack" => Self::WinBack,
+            _ => Self::Unknown(raw),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OfferPaymentMode {
+    FreeTrial,
+    PayAsYouGo,
+    PayUpFront,
+    OneTime,
+    Unknown(String),
+}
+
+impl OfferPaymentMode {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::FreeTrial => "freeTrial",
+            Self::PayAsYouGo => "payAsYouGo",
+            Self::PayUpFront => "payUpFront",
+            Self::OneTime => "oneTime",
+            Self::Unknown(value) => value.as_str(),
+        }
+    }
+
+    fn from_raw(raw: String) -> Self {
+        match raw.as_str() {
+            "freeTrial" => Self::FreeTrial,
+            "payAsYouGo" => Self::PayAsYouGo,
+            "payUpFront" => Self::PayUpFront,
+            "oneTime" => Self::OneTime,
+            _ => Self::Unknown(raw),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransactionOffer {
+    pub id: Option<String>,
+    pub offer_type: OfferType,
+    pub payment_mode: Option<OfferPaymentMode>,
+    pub period: Option<SubscriptionPeriod>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,18 +174,32 @@ pub struct TransactionData {
     pub signed_date: String,
     pub jws_representation: String,
     pub verification_failure: Option<VerificationFailure>,
+    pub revocation_date: Option<String>,
+    pub revocation_reason: Option<RevocationReason>,
+    pub product_type: Option<ProductType>,
+    pub app_account_token: Option<String>,
+    pub environment: Option<AppStoreEnvironment>,
+    pub reason: Option<TransactionReason>,
+    pub storefront: Option<Storefront>,
+    pub price: Option<String>,
+    pub currency_code: Option<String>,
+    pub app_transaction_id: Option<String>,
+    pub offer: Option<TransactionOffer>,
+    pub json_representation: Vec<u8>,
 }
 
 #[derive(Debug)]
 pub struct Transaction {
-    handle: NonNull<c_void>,
+    handle: Option<NonNull<c_void>>,
     data: TransactionData,
 }
 
 impl Clone for Transaction {
     fn clone(&self) -> Self {
-        let retained = unsafe { ffi::sk_transaction_retain(self.handle.as_ptr()) };
-        let handle = NonNull::new(retained).expect("StoreKit transaction retain returned null");
+        let handle = self.handle.map(|handle| {
+            let retained = unsafe { ffi::sk_transaction_retain(handle.as_ptr()) };
+            NonNull::new(retained).expect("StoreKit transaction retain returned null")
+        });
         Self {
             handle,
             data: self.data.clone(),
@@ -95,66 +209,171 @@ impl Clone for Transaction {
 
 impl Drop for Transaction {
     fn drop(&mut self) {
-        unsafe { ffi::sk_transaction_release(self.handle.as_ptr()) };
+        if let Some(handle) = self.handle {
+            unsafe { ffi::sk_transaction_release(handle.as_ptr()) };
+        }
     }
 }
 
 impl Transaction {
     pub fn current_entitlements() -> Result<TransactionStream, StoreKitError> {
-        TransactionStream::new(ffi::stream_kind::CURRENT_ENTITLEMENTS)
+        TransactionStream::new(&TransactionStreamConfig::current_entitlements())
     }
 
     pub fn all() -> Result<TransactionStream, StoreKitError> {
-        TransactionStream::new(ffi::stream_kind::ALL)
+        TransactionStream::new(&TransactionStreamConfig::all())
     }
 
     pub fn updates() -> Result<TransactionStream, StoreKitError> {
-        TransactionStream::new(ffi::stream_kind::UPDATES)
+        TransactionStream::new(&TransactionStreamConfig::updates())
+    }
+
+    pub fn unfinished() -> Result<TransactionStream, StoreKitError> {
+        TransactionStream::new(&TransactionStreamConfig::unfinished())
+    }
+
+    pub fn all_for(product_id: &str) -> Result<TransactionStream, StoreKitError> {
+        TransactionStream::new(&TransactionStreamConfig::all_for(product_id))
+    }
+
+    pub fn current_entitlements_for(product_id: &str) -> Result<TransactionStream, StoreKitError> {
+        TransactionStream::new(&TransactionStreamConfig::current_entitlements_for(
+            product_id,
+        ))
+    }
+
+    pub fn latest_for(product_id: &str) -> Result<Option<VerificationResult<Self>>, StoreKitError> {
+        let product_id = cstring_from_str(product_id, "product id")?;
+        let mut transaction_handle = ptr::null_mut();
+        let mut result_json = ptr::null_mut();
+        let mut error_message = ptr::null_mut();
+        let status = unsafe {
+            ffi::sk_transaction_latest_for(
+                product_id.as_ptr(),
+                &mut transaction_handle,
+                &mut result_json,
+                &mut error_message,
+            )
+        };
+        if status != ffi::status::OK {
+            return Err(unsafe { error_from_status(status, error_message) });
+        }
+
+        let payload = unsafe {
+            parse_optional_json_ptr::<VerificationResultPayload<TransactionPayload>>(
+                result_json,
+                "latest transaction",
+            )
+        }?;
+        payload
+            .map(|payload| {
+                payload.into_result(|payload| Self::from_raw_parts(transaction_handle, payload))
+            })
+            .transpose()
+    }
+
+    pub fn current_entitlement_for(
+        product_id: &str,
+    ) -> Result<Option<VerificationResult<Self>>, StoreKitError> {
+        let product_id = cstring_from_str(product_id, "product id")?;
+        let mut transaction_handle = ptr::null_mut();
+        let mut result_json = ptr::null_mut();
+        let mut error_message = ptr::null_mut();
+        let status = unsafe {
+            ffi::sk_transaction_current_entitlement_for(
+                product_id.as_ptr(),
+                &mut transaction_handle,
+                &mut result_json,
+                &mut error_message,
+            )
+        };
+        if status != ffi::status::OK {
+            return Err(unsafe { error_from_status(status, error_message) });
+        }
+
+        let payload = unsafe {
+            parse_optional_json_ptr::<VerificationResultPayload<TransactionPayload>>(
+                result_json,
+                "current entitlement transaction",
+            )
+        }?;
+        payload
+            .map(|payload| {
+                payload.into_result(|payload| Self::from_raw_parts(transaction_handle, payload))
+            })
+            .transpose()
     }
 
     pub const fn data(&self) -> &TransactionData {
         &self.data
     }
 
+    pub const fn has_live_handle(&self) -> bool {
+        self.handle.is_some()
+    }
+
     pub fn verify(&self) -> Result<(), StoreKitError> {
-        let mut error_message = ptr::null_mut();
-        let status = unsafe { ffi::sk_transaction_verify(self.handle.as_ptr(), &mut error_message) };
-        if status == ffi::status::OK {
-            Ok(())
-        } else {
-            Err(unsafe { error_from_status(status, error_message) })
-        }
+        self.handle.map_or_else(
+            || {
+                self.data
+                    .verification_failure
+                    .clone()
+                    .map_or(Ok(()), |failure| Err(StoreKitError::Verification(failure)))
+            },
+            |handle| {
+                let mut error_message = ptr::null_mut();
+                let status =
+                    unsafe { ffi::sk_transaction_verify(handle.as_ptr(), &mut error_message) };
+                if status == ffi::status::OK {
+                    Ok(())
+                } else {
+                    Err(unsafe { error_from_status(status, error_message) })
+                }
+            },
+        )
     }
 
     pub fn finish(&self) -> Result<(), StoreKitError> {
-        let mut error_message = ptr::null_mut();
-        let status = unsafe { ffi::sk_transaction_finish(self.handle.as_ptr(), &mut error_message) };
-        if status == ffi::status::OK {
-            Ok(())
-        } else {
-            Err(unsafe { error_from_status(status, error_message) })
-        }
+        self.handle.map_or_else(
+            || {
+                Err(StoreKitError::NotSupported(
+                    "transaction snapshots cannot be finished because they do not carry a live StoreKit handle"
+                        .to_owned(),
+                ))
+            },
+            |handle| {
+                let mut error_message = ptr::null_mut();
+                let status = unsafe { ffi::sk_transaction_finish(handle.as_ptr(), &mut error_message) };
+                if status == ffi::status::OK {
+                    Ok(())
+                } else {
+                    Err(unsafe { error_from_status(status, error_message) })
+                }
+            },
+        )
+    }
+
+    pub fn begin_refund_request(&self) -> Result<RefundRequestStatus, StoreKitError> {
+        Refund::begin_for_transaction_id(self.data.id)
     }
 
     pub(crate) fn from_raw_parts(
         handle: *mut c_void,
         payload: TransactionPayload,
     ) -> Result<Self, StoreKitError> {
-        let handle = NonNull::new(handle).ok_or_else(|| {
-            StoreKitError::Unknown("StoreKit returned a null transaction handle".to_owned())
-        })?;
         Ok(Self {
-            handle,
-            data: payload.into_transaction_data(),
+            handle: NonNull::new(handle),
+            data: payload.into_transaction_data()?,
         })
     }
 
-    pub(crate) fn into_verification_result(self) -> VerificationResult<Self> {
-        if let Some(failure) = self.data.verification_failure.clone() {
-            VerificationResult::Unverified(self, failure)
-        } else {
-            VerificationResult::Verified(self)
-        }
+    pub(crate) fn from_snapshot_payload(
+        payload: TransactionPayload,
+    ) -> Result<Self, StoreKitError> {
+        Ok(Self {
+            handle: None,
+            data: payload.into_transaction_data()?,
+        })
     }
 }
 
@@ -171,9 +390,11 @@ impl Drop for TransactionStream {
 }
 
 impl TransactionStream {
-    fn new(kind: i32) -> Result<Self, StoreKitError> {
+    fn new(config: &TransactionStreamConfig) -> Result<Self, StoreKitError> {
+        let config_json = json_cstring(config, "transaction stream config")?;
         let mut error_message = ptr::null_mut();
-        let handle = unsafe { ffi::sk_transaction_stream_create(kind, &mut error_message) };
+        let handle =
+            unsafe { ffi::sk_transaction_stream_create(config_json.as_ptr(), &mut error_message) };
         let handle = NonNull::new(handle)
             .ok_or_else(|| unsafe { error_from_status(ffi::status::UNKNOWN, error_message) })?;
         Ok(Self {
@@ -196,26 +417,32 @@ impl TransactionStream {
         timeout: Duration,
     ) -> Result<Option<VerificationResult<Transaction>>, StoreKitError> {
         let mut transaction_handle = ptr::null_mut();
-        let mut transaction_json = ptr::null_mut();
+        let mut verification_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
         let status = unsafe {
             ffi::sk_transaction_stream_next(
                 self.handle.as_ptr(),
                 duration_to_timeout_ms(timeout),
                 &mut transaction_handle,
-                &mut transaction_json,
+                &mut verification_json,
                 &mut error_message,
             )
         };
 
         match status {
             ffi::status::OK => {
-                let payload = unsafe { parse_json_ptr::<TransactionPayload>(transaction_json, "transaction") };
+                let payload = unsafe {
+                    parse_json_ptr::<VerificationResultPayload<TransactionPayload>>(
+                        verification_json,
+                        "transaction verification result",
+                    )
+                };
                 match payload {
-                    Ok(payload) => {
-                        let transaction = Transaction::from_raw_parts(transaction_handle, payload)?;
-                        Ok(Some(transaction.into_verification_result()))
-                    }
+                    Ok(payload) => payload
+                        .into_result(|payload| {
+                            Transaction::from_raw_parts(transaction_handle, payload)
+                        })
+                        .map(Some),
                     Err(error) => {
                         if !transaction_handle.is_null() {
                             unsafe { ffi::sk_transaction_release(transaction_handle) };
@@ -230,6 +457,80 @@ impl TransactionStream {
             }
             ffi::status::TIMED_OUT => Ok(None),
             _ => Err(unsafe { error_from_status(status, error_message) }),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct TransactionStreamConfig {
+    kind: &'static str,
+    #[serde(rename = "productID", skip_serializing_if = "Option::is_none")]
+    product_id: Option<String>,
+}
+
+impl TransactionStreamConfig {
+    const fn all() -> Self {
+        Self {
+            kind: "all",
+            product_id: None,
+        }
+    }
+
+    const fn current_entitlements() -> Self {
+        Self {
+            kind: "currentEntitlements",
+            product_id: None,
+        }
+    }
+
+    const fn updates() -> Self {
+        Self {
+            kind: "updates",
+            product_id: None,
+        }
+    }
+
+    const fn unfinished() -> Self {
+        Self {
+            kind: "unfinished",
+            product_id: None,
+        }
+    }
+
+    fn all_for(product_id: &str) -> Self {
+        Self {
+            kind: "allFor",
+            product_id: Some(product_id.to_owned()),
+        }
+    }
+
+    fn current_entitlements_for(product_id: &str) -> Self {
+        Self {
+            kind: "currentEntitlementsFor",
+            product_id: Some(product_id.to_owned()),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct TransactionOfferPayload {
+    id: Option<String>,
+    #[serde(rename = "type")]
+    offer_type: String,
+    #[serde(rename = "paymentMode")]
+    payment_mode: Option<String>,
+    period: Option<SubscriptionPeriodPayload>,
+}
+
+impl TransactionOfferPayload {
+    pub(crate) fn into_transaction_offer(self) -> TransactionOffer {
+        TransactionOffer {
+            id: self.id,
+            offer_type: OfferType::from_raw(self.offer_type),
+            payment_mode: self.payment_mode.map(OfferPaymentMode::from_raw),
+            period: self
+                .period
+                .map(SubscriptionPeriodPayload::into_subscription_period),
         }
     }
 }
@@ -265,11 +566,30 @@ pub(crate) struct TransactionPayload {
     jws_representation: String,
     #[serde(rename = "verificationError")]
     verification_error: Option<crate::error::VerificationErrorPayload>,
+    #[serde(rename = "revocationDate")]
+    revocation_date: Option<String>,
+    #[serde(rename = "revocationReason")]
+    revocation_reason: Option<String>,
+    #[serde(rename = "productType")]
+    product_type: Option<String>,
+    #[serde(rename = "appAccountToken")]
+    app_account_token: Option<String>,
+    environment: Option<String>,
+    reason: Option<String>,
+    storefront: Option<StorefrontPayload>,
+    price: Option<String>,
+    #[serde(rename = "currencyCode")]
+    currency_code: Option<String>,
+    #[serde(rename = "appTransactionID")]
+    app_transaction_id: Option<String>,
+    offer: Option<TransactionOfferPayload>,
+    #[serde(rename = "jsonRepresentationBase64")]
+    json_representation_base64: String,
 }
 
 impl TransactionPayload {
-    fn into_transaction_data(self) -> TransactionData {
-        TransactionData {
+    fn into_transaction_data(self) -> Result<TransactionData, StoreKitError> {
+        Ok(TransactionData {
             id: self.id,
             original_id: self.original_id,
             web_order_line_item_id: self.web_order_line_item_id,
@@ -287,6 +607,23 @@ impl TransactionPayload {
             verification_failure: self
                 .verification_error
                 .map(crate::error::VerificationFailure::from_payload),
-        }
+            revocation_date: self.revocation_date,
+            revocation_reason: self.revocation_reason.map(RevocationReason::from_raw),
+            product_type: self.product_type.map(ProductType::from_raw),
+            app_account_token: self.app_account_token,
+            environment: self.environment.map(AppStoreEnvironment::from_raw),
+            reason: self.reason.map(TransactionReason::from_raw),
+            storefront: self.storefront.map(StorefrontPayload::into_storefront),
+            price: self.price,
+            currency_code: self.currency_code,
+            app_transaction_id: self.app_transaction_id,
+            offer: self
+                .offer
+                .map(TransactionOfferPayload::into_transaction_offer),
+            json_representation: decode_base64(
+                &self.json_representation_base64,
+                "transaction JSON representation",
+            )?,
+        })
     }
 }
