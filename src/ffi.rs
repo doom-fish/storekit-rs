@@ -18,6 +18,25 @@ extern "C" {
         out_result_json: *mut *mut c_char,
         out_error_message: *mut *mut c_char,
     ) -> i32;
+    pub fn sk_product_purchase_in_window(
+        product_id: *const c_char,
+        window: *mut c_void,
+        options_json: *const c_char,
+        out_transaction: *mut *mut c_void,
+        out_result_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_product_formatting_json(
+        product_id: *const c_char,
+        out_formatting_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_localized_description(
+        kind: *const c_char,
+        raw_value: *const c_char,
+        out_localized_description: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
 
     pub fn sk_transaction_stream_create(
         config_json: *const c_char,
@@ -68,6 +87,18 @@ extern "C" {
     pub fn sk_app_store_request_review(out_error_message: *mut *mut c_char) -> i32;
     pub fn sk_app_store_present_offer_code_redeem_sheet(out_error_message: *mut *mut c_char)
         -> i32;
+    pub fn sk_app_store_age_rating_code(
+        out_value: *mut i64,
+        out_has_value: *mut i32,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_app_store_present_merchandising(
+        kind_json: *const c_char,
+        window: *mut c_void,
+        out_transaction: *mut *mut c_void,
+        out_result_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
 
     pub fn sk_storefront_current_json(
         out_storefront_json: *mut *mut c_char,
@@ -97,12 +128,96 @@ extern "C" {
         out_status_json: *mut *mut c_char,
         out_error_message: *mut *mut c_char,
     ) -> i32;
+    pub fn sk_subscription_status_stream_create(
+        out_error_message: *mut *mut c_char,
+    ) -> *mut c_void;
+    pub fn sk_subscription_status_stream_release(stream: *mut c_void);
+    pub fn sk_subscription_status_stream_next(
+        stream: *mut c_void,
+        timeout_ms: u32,
+        out_status_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_subscription_group_status_stream_create(
+        out_error_message: *mut *mut c_char,
+    ) -> *mut c_void;
+    pub fn sk_subscription_group_status_stream_release(stream: *mut c_void);
+    pub fn sk_subscription_group_status_stream_next(
+        stream: *mut c_void,
+        timeout_ms: u32,
+        out_payload_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
 
     pub fn sk_app_transaction_shared(
         out_result_json: *mut *mut c_char,
         out_error_message: *mut *mut c_char,
     ) -> i32;
     pub fn sk_app_transaction_refresh(
+        out_result_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+
+    pub fn sk_purchase_intent_stream_create(
+        out_error_message: *mut *mut c_char,
+    ) -> *mut c_void;
+    pub fn sk_purchase_intent_stream_release(stream: *mut c_void);
+    pub fn sk_purchase_intent_stream_next(
+        stream: *mut c_void,
+        timeout_ms: u32,
+        out_payload_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+
+    pub fn sk_external_purchase_can_present(
+        out_value: *mut i32,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_external_purchase_present_notice_result_json(
+        out_result_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_external_purchase_link_can_open(
+        out_value: *mut i32,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_external_purchase_link_eligible_urls_json(
+        out_urls_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_external_purchase_link_open(
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_external_purchase_link_open_url(
+        url: *const c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_external_purchase_custom_link_is_eligible(
+        out_value: *mut i32,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_external_purchase_custom_link_show_notice_result_json(
+        notice_type: i32,
+        out_result_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_external_purchase_custom_link_token_json(
+        token_type: *const c_char,
+        out_token_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+
+    pub fn sk_advanced_commerce_product_json(
+        product_id: *const c_char,
+        out_product_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn sk_advanced_commerce_product_purchase(
+        product_id: *const c_char,
+        compact_jws: *const c_char,
+        window: *mut c_void,
+        options_json: *const c_char,
+        out_transaction: *mut *mut c_void,
         out_result_json: *mut *mut c_char,
         out_error_message: *mut *mut c_char,
     ) -> i32;

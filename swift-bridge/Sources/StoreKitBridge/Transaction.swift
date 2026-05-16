@@ -40,6 +40,7 @@ struct SKTransactionPayload: Codable {
     let currencyCode: String?
     let appTransactionID: String?
     let offer: SKTransactionOfferPayload?
+    let advancedCommerceInfo: SKTransactionAdvancedCommerceInfoPayload?
     let jsonRepresentationBase64: String
 }
 
@@ -183,6 +184,15 @@ func skTransactionPayload(from result: VerificationResult<Transaction>) -> SKTra
         price = nil
     }
 
+    let advancedCommerceInfo: SKTransactionAdvancedCommerceInfoPayload?
+    if #available(macOS 15.4, *) {
+        advancedCommerceInfo = transaction.advancedCommerceInfo.map(
+            skTransactionAdvancedCommerceInfoPayload(from:)
+        )
+    } else {
+        advancedCommerceInfo = nil
+    }
+
     let currencyCode: String?
     if #available(macOS 13.0, *) {
         currencyCode = transaction.currencyCode
@@ -217,6 +227,7 @@ func skTransactionPayload(from result: VerificationResult<Transaction>) -> SKTra
         currencyCode: currencyCode,
         appTransactionID: transaction.appTransactionID,
         offer: offer,
+        advancedCommerceInfo: advancedCommerceInfo,
         jsonRepresentationBase64: skDataBase64(transaction.jsonRepresentation)
     )
 }

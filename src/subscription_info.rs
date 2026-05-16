@@ -156,7 +156,7 @@ impl SubscriptionInfoPayload {
 }
 
 #[derive(Debug, Deserialize)]
-struct SubscriptionStatusPayload {
+pub(crate) struct SubscriptionStatusPayload {
     state: String,
     transaction: VerificationResultPayload<TransactionPayload>,
     #[serde(rename = "renewalInfo")]
@@ -164,7 +164,7 @@ struct SubscriptionStatusPayload {
 }
 
 impl SubscriptionStatusPayload {
-    fn into_subscription_status(self) -> Result<SubscriptionStatus, StoreKitError> {
+    pub(crate) fn into_subscription_status(self) -> Result<SubscriptionStatus, StoreKitError> {
         Ok(SubscriptionStatus {
             state: RenewalState::from_raw(self.state),
             transaction: self

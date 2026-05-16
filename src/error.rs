@@ -1,5 +1,7 @@
 use core::ffi::c_char;
+use std::collections::HashMap;
 use std::fmt;
+use std::sync::{Mutex, OnceLock};
 
 use serde::Deserialize;
 
@@ -14,6 +16,43 @@ pub enum StoreKitError {
     Framework(StoreKitFrameworkError),
     Verification(VerificationFailure),
     Unknown(String),
+}
+
+impl StoreKitError {
+    pub fn typed(&self) -> Option<TypedStoreKitError> {
+        match self {
+            Self::Framework(error) => lookup_typed_framework_error(error),
+            _ => None,
+        }
+    }
+
+    pub fn storekit_api_error(&self) -> Option<StoreKitApiError> {
+        match self.typed() {
+            Some(TypedStoreKitError::StoreKit(error)) => Some(error),
+            _ => None,
+        }
+    }
+
+    pub fn product_purchase_error(&self) -> Option<ProductPurchaseError> {
+        match self.typed() {
+            Some(TypedStoreKitError::Purchase(error)) => Some(error),
+            _ => None,
+        }
+    }
+
+    pub fn refund_request_error(&self) -> Option<RefundRequestError> {
+        match self.typed() {
+            Some(TypedStoreKitError::RefundRequest(error)) => Some(error),
+            _ => None,
+        }
+    }
+
+    pub fn invalid_request_error(&self) -> Option<InvalidRequestError> {
+        match self.typed() {
+            Some(TypedStoreKitError::InvalidRequest(error)) => Some(error),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for StoreKitError {
@@ -45,6 +84,190 @@ pub struct StoreKitFrameworkError {
     pub domain: String,
     pub code: i64,
     pub localized_description: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TypedStoreKitError {
+    StoreKit(StoreKitApiError),
+    Purchase(ProductPurchaseError),
+    RefundRequest(RefundRequestError),
+    InvalidRequest(InvalidRequestError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoreKitApiError {
+    pub code: StoreKitApiErrorCode,
+    pub error_description: Option<String>,
+    pub failure_reason: Option<String>,
+    pub recovery_suggestion: Option<String>,
+    pub underlying_domain: Option<String>,
+    pub underlying_code: Option<i64>,
+    pub underlying_description: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StoreKitApiErrorCode {
+    Unknown,
+    UserCancelled,
+    NetworkError,
+    SystemError,
+    NotAvailableInStorefront,
+    NotEntitled,
+    Unsupported,
+    Other(String),
+}
+
+impl StoreKitApiErrorCode {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::UserCancelled => "userCancelled",
+            Self::NetworkError => "networkError",
+            Self::SystemError => "systemError",
+            Self::NotAvailableInStorefront => "notAvailableInStorefront",
+            Self::NotEntitled => "notEntitled",
+            Self::Unsupported => "unsupported",
+            Self::Other(value) => value.as_str(),
+        }
+    }
+
+    fn from_raw(raw: String) -> Self {
+        match raw.as_str() {
+            "unknown" => Self::Unknown,
+            "userCancelled" => Self::UserCancelled,
+            "networkError" => Self::NetworkError,
+            "systemError" => Self::SystemError,
+            "notAvailableInStorefront" => Self::NotAvailableInStorefront,
+            "notEntitled" => Self::NotEntitled,
+            "unsupported" => Self::Unsupported,
+            _ => Self::Other(raw),
+        }
+    }
+
+    const fn numeric_code(&self) -> i64 {
+        match self {
+            Self::Unknown => 0,
+            Self::UserCancelled => 1,
+            Self::NetworkError => 2,
+            Self::SystemError => 3,
+            Self::NotAvailableInStorefront => 4,
+            Self::NotEntitled => 5,
+            Self::Unsupported => 6,
+            Self::Other(_) => -1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProductPurchaseError {
+    pub code: ProductPurchaseErrorCode,
+    pub error_description: Option<String>,
+    pub failure_reason: Option<String>,
+    pub recovery_suggestion: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProductPurchaseErrorCode {
+    InvalidQuantity,
+    ProductUnavailable,
+    PurchaseNotAllowed,
+    IneligibleForOffer,
+    InvalidOfferIdentifier,
+    InvalidOfferPrice,
+    InvalidOfferSignature,
+    MissingOfferParameters,
+    Other(String),
+}
+
+impl ProductPurchaseErrorCode {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::InvalidQuantity => "invalidQuantity",
+            Self::ProductUnavailable => "productUnavailable",
+            Self::PurchaseNotAllowed => "purchaseNotAllowed",
+            Self::IneligibleForOffer => "ineligibleForOffer",
+            Self::InvalidOfferIdentifier => "invalidOfferIdentifier",
+            Self::InvalidOfferPrice => "invalidOfferPrice",
+            Self::InvalidOfferSignature => "invalidOfferSignature",
+            Self::MissingOfferParameters => "missingOfferParameters",
+            Self::Other(value) => value.as_str(),
+        }
+    }
+
+    fn from_raw(raw: String) -> Self {
+        match raw.as_str() {
+            "invalidQuantity" => Self::InvalidQuantity,
+            "productUnavailable" => Self::ProductUnavailable,
+            "purchaseNotAllowed" => Self::PurchaseNotAllowed,
+            "ineligibleForOffer" => Self::IneligibleForOffer,
+            "invalidOfferIdentifier" => Self::InvalidOfferIdentifier,
+            "invalidOfferPrice" => Self::InvalidOfferPrice,
+            "invalidOfferSignature" => Self::InvalidOfferSignature,
+            "missingOfferParameters" => Self::MissingOfferParameters,
+            _ => Self::Other(raw),
+        }
+    }
+
+    const fn numeric_code(&self) -> i64 {
+        match self {
+            Self::InvalidQuantity => 0,
+            Self::ProductUnavailable => 1,
+            Self::PurchaseNotAllowed => 2,
+            Self::IneligibleForOffer => 3,
+            Self::InvalidOfferIdentifier => 4,
+            Self::InvalidOfferPrice => 5,
+            Self::InvalidOfferSignature => 6,
+            Self::MissingOfferParameters => 7,
+            Self::Other(_) => -1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RefundRequestError {
+    pub code: RefundRequestErrorCode,
+    pub error_description: Option<String>,
+    pub failure_reason: Option<String>,
+    pub recovery_suggestion: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RefundRequestErrorCode {
+    DuplicateRequest,
+    Failed,
+    Other(String),
+}
+
+impl RefundRequestErrorCode {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::DuplicateRequest => "duplicateRequest",
+            Self::Failed => "failed",
+            Self::Other(value) => value.as_str(),
+        }
+    }
+
+    fn from_raw(raw: String) -> Self {
+        match raw.as_str() {
+            "duplicateRequest" => Self::DuplicateRequest,
+            "failed" => Self::Failed,
+            _ => Self::Other(raw),
+        }
+    }
+
+    const fn numeric_code(&self) -> i64 {
+        match self {
+            Self::DuplicateRequest => 0,
+            Self::Failed => 1,
+            Self::Other(_) => -1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvalidRequestError {
+    pub code: i64,
+    pub message: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,13 +332,142 @@ impl VerificationFailure {
 }
 
 #[derive(Debug, Deserialize)]
-struct FrameworkErrorPayload {
-    #[allow(dead_code)]
-    kind: String,
-    domain: String,
-    code: i64,
-    #[serde(rename = "localizedDescription")]
-    localized_description: String,
+#[serde(tag = "kind")]
+enum FrameworkErrorPayload {
+    #[serde(rename = "framework")]
+    Framework {
+        domain: String,
+        code: i64,
+        #[serde(rename = "localizedDescription")]
+        localized_description: String,
+    },
+    #[serde(rename = "storekitError")]
+    StoreKit {
+        code: String,
+        #[serde(rename = "errorDescription")]
+        error_description: Option<String>,
+        #[serde(rename = "failureReason")]
+        failure_reason: Option<String>,
+        #[serde(rename = "recoverySuggestion")]
+        recovery_suggestion: Option<String>,
+        #[serde(rename = "underlyingDomain")]
+        underlying_domain: Option<String>,
+        #[serde(rename = "underlyingCode")]
+        underlying_code: Option<i64>,
+        #[serde(rename = "underlyingDescription")]
+        underlying_description: Option<String>,
+    },
+    #[serde(rename = "purchaseError")]
+    Purchase {
+        code: String,
+        #[serde(rename = "errorDescription")]
+        error_description: Option<String>,
+        #[serde(rename = "failureReason")]
+        failure_reason: Option<String>,
+        #[serde(rename = "recoverySuggestion")]
+        recovery_suggestion: Option<String>,
+    },
+    #[serde(rename = "refundRequestError")]
+    RefundRequest {
+        code: String,
+        #[serde(rename = "errorDescription")]
+        error_description: Option<String>,
+        #[serde(rename = "failureReason")]
+        failure_reason: Option<String>,
+        #[serde(rename = "recoverySuggestion")]
+        recovery_suggestion: Option<String>,
+    },
+    #[serde(rename = "invalidRequestError")]
+    InvalidRequest {
+        code: i64,
+        message: String,
+    },
+}
+
+impl FrameworkErrorPayload {
+    fn into_storekit_error(self) -> StoreKitError {
+        match self {
+            Self::Framework {
+                domain,
+                code,
+                localized_description,
+            } => StoreKitError::Framework(StoreKitFrameworkError {
+                domain,
+                code,
+                localized_description,
+            }),
+            Self::StoreKit {
+                code,
+                error_description,
+                failure_reason,
+                recovery_suggestion,
+                underlying_domain,
+                underlying_code,
+                underlying_description,
+            } => typed_framework_error(
+                "StoreKit.StoreKitError",
+                StoreKitApiErrorCode::from_raw(code.clone()).numeric_code(),
+                error_description
+                    .clone()
+                    .unwrap_or_else(|| StoreKitApiErrorCode::from_raw(code.clone()).as_str().to_owned()),
+                TypedStoreKitError::StoreKit(StoreKitApiError {
+                    code: StoreKitApiErrorCode::from_raw(code),
+                    error_description,
+                    failure_reason,
+                    recovery_suggestion,
+                    underlying_domain,
+                    underlying_code,
+                    underlying_description,
+                }),
+            ),
+            Self::Purchase {
+                code,
+                error_description,
+                failure_reason,
+                recovery_suggestion,
+            } => typed_framework_error(
+                "StoreKit.Product.PurchaseError",
+                ProductPurchaseErrorCode::from_raw(code.clone()).numeric_code(),
+                error_description.clone().unwrap_or_else(|| {
+                    ProductPurchaseErrorCode::from_raw(code.clone())
+                        .as_str()
+                        .to_owned()
+                }),
+                TypedStoreKitError::Purchase(ProductPurchaseError {
+                    code: ProductPurchaseErrorCode::from_raw(code),
+                    error_description,
+                    failure_reason,
+                    recovery_suggestion,
+                }),
+            ),
+            Self::RefundRequest {
+                code,
+                error_description,
+                failure_reason,
+                recovery_suggestion,
+            } => typed_framework_error(
+                "StoreKit.Transaction.RefundRequestError",
+                RefundRequestErrorCode::from_raw(code.clone()).numeric_code(),
+                error_description.clone().unwrap_or_else(|| {
+                    RefundRequestErrorCode::from_raw(code.clone())
+                        .as_str()
+                        .to_owned()
+                }),
+                TypedStoreKitError::RefundRequest(RefundRequestError {
+                    code: RefundRequestErrorCode::from_raw(code),
+                    error_description,
+                    failure_reason,
+                    recovery_suggestion,
+                }),
+            ),
+            Self::InvalidRequest { code, message } => typed_framework_error(
+                "StoreKit.InvalidRequestError",
+                code,
+                message.clone(),
+                TypedStoreKitError::InvalidRequest(InvalidRequestError { code, message }),
+            ),
+        }
+    }
 }
 
 pub(crate) unsafe fn from_swift(status: i32, err_msg: *mut c_char) -> StoreKitError {
@@ -157,13 +509,7 @@ fn parse_framework_error(message: Option<String>) -> StoreKitError {
                         localized_description: json,
                     })
                 },
-                |payload| {
-                    StoreKitError::Framework(StoreKitFrameworkError {
-                        domain: payload.domain,
-                        code: payload.code,
-                        localized_description: payload.localized_description,
-                    })
-                },
+                FrameworkErrorPayload::into_storekit_error,
             )
         },
     )
@@ -189,4 +535,85 @@ fn parse_verification_error(message: Option<String>) -> StoreKitError {
             )
         },
     )
+}
+
+fn typed_framework_error(
+    domain: &str,
+    code: i64,
+    localized_description: String,
+    typed_error: TypedStoreKitError,
+) -> StoreKitError {
+    let framework_error = StoreKitFrameworkError {
+        domain: domain.to_owned(),
+        code,
+        localized_description,
+    };
+    register_typed_framework_error(&framework_error, typed_error);
+    StoreKitError::Framework(framework_error)
+}
+
+fn register_typed_framework_error(error: &StoreKitFrameworkError, typed_error: TypedStoreKitError) {
+    typed_framework_error_registry()
+        .lock()
+        .expect("typed StoreKit error registry poisoned")
+        .insert(framework_error_key(error), typed_error);
+}
+
+fn lookup_typed_framework_error(error: &StoreKitFrameworkError) -> Option<TypedStoreKitError> {
+    typed_framework_error_registry()
+        .lock()
+        .expect("typed StoreKit error registry poisoned")
+        .get(&framework_error_key(error))
+        .cloned()
+}
+
+fn framework_error_key(error: &StoreKitFrameworkError) -> String {
+    format!("{}\u{0}{}\u{0}", error.domain, error.code) + &error.localized_description
+}
+
+fn typed_framework_error_registry() -> &'static Mutex<HashMap<String, TypedStoreKitError>> {
+    static REGISTRY: OnceLock<Mutex<HashMap<String, TypedStoreKitError>>> = OnceLock::new();
+    REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_product_purchase_errors_into_typed_details() {
+        let error = parse_framework_error(Some(
+            r#"{"kind":"purchaseError","code":"invalidQuantity","errorDescription":"bad quantity","failureReason":"quantity must be positive","recoverySuggestion":"choose a quantity greater than zero"}"#
+                .to_owned(),
+        ));
+        let typed = error
+            .product_purchase_error()
+            .expect("typed product purchase error");
+        assert_eq!(typed.code, ProductPurchaseErrorCode::InvalidQuantity);
+        assert_eq!(typed.error_description.as_deref(), Some("bad quantity"));
+    }
+
+    #[test]
+    fn parses_storekit_errors_into_typed_details() {
+        let error = parse_framework_error(Some(
+            r#"{"kind":"storekitError","code":"unsupported","errorDescription":"unsupported","failureReason":"not available here","recoverySuggestion":"try a supported storefront"}"#
+                .to_owned(),
+        ));
+        let typed = error.storekit_api_error().expect("typed StoreKit API error");
+        assert_eq!(typed.code, StoreKitApiErrorCode::Unsupported);
+        assert_eq!(typed.failure_reason.as_deref(), Some("not available here"));
+    }
+
+    #[test]
+    fn parses_invalid_request_errors_into_typed_details() {
+        let error = parse_framework_error(Some(
+            r#"{"kind":"invalidRequestError","code":47,"message":"bad request"}"#
+                .to_owned(),
+        ));
+        let typed = error
+            .invalid_request_error()
+            .expect("typed invalid request error");
+        assert_eq!(typed.code, 47);
+        assert_eq!(typed.message, "bad request");
+    }
 }

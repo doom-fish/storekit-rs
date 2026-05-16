@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import StoreKit
 
@@ -49,6 +50,27 @@ func skProductPayload(from product: Product) -> SKProductPayload {
         priceLocaleIdentifier: nil,
         jsonRepresentationBase64: skDataBase64(product.jsonRepresentation)
     )
+}
+
+func skPurchaseResultPayload(
+    from result: Product.PurchaseResult,
+    outTransaction: UnsafeMutablePointer<UnsafeMutableRawPointer?>?
+) throws -> SKPurchaseResultPayload {
+    switch result {
+    case .success(let verificationResult):
+        let box = SKTransactionBox(result: verificationResult)
+        outTransaction?.pointee = sk_retain(box)
+        return SKPurchaseResultPayload(
+            kind: "success",
+            verificationResult: skTransactionVerificationResultPayload(from: verificationResult)
+        )
+    case .userCancelled:
+        return SKPurchaseResultPayload(kind: "userCancelled", verificationResult: nil)
+    case .pending:
+        return SKPurchaseResultPayload(kind: "pending", verificationResult: nil)
+    @unknown default:
+        throw SKBridgeError.unknown("StoreKit returned an unknown purchase result")
+    }
 }
 
 @_cdecl("sk_products_json")
@@ -104,33 +126,63 @@ public func sk_product_purchase(
     return skBlockOnMainActorAsync(
         timeoutSeconds: 60,
         work: {
-            let products = try await Product.products(for: [String(cString: productID)])
-            guard let product = products.first else {
-                throw SKBridgeError.invalidArgument("product not found for identifier \(String(cString: productID))")
-            }
+            let product = try await skSingleProduct(for: String(cString: productID))
             let options = try skBuildPurchaseOptions(from: optionPayloads, product: product)
             let result = try await product.purchase(options: options)
-            switch result {
-            case .success(let verificationResult):
-                let box = SKTransactionBox(result: verificationResult)
-                outTransaction?.pointee = sk_retain(box)
-                return try skEncodeJSON(
-                    SKPurchaseResultPayload(
-                        kind: "success",
-                        verificationResult: skTransactionVerificationResultPayload(from: verificationResult)
-                    )
+            return try skEncodeJSON(
+                try skPurchaseResultPayload(from: result, outTransaction: outTransaction)
+            )
+        },
+        onSuccess: { json in
+            outResultJSON?.pointee = skCString(json)
+        },
+        onError: { error in
+            skPopulateError(outError, with: error)
+        }
+    )
+}
+
+@_cdecl("sk_product_purchase_in_window")
+public func sk_product_purchase_in_window(
+    _ productID: UnsafePointer<CChar>?,
+    _ window: UnsafeMutableRawPointer?,
+    _ optionsJSON: UnsafePointer<CChar>?,
+    _ outTransaction: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
+    _ outResultJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
+    _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Int32 {
+    guard let productID else {
+        let error = SKBridgeError.invalidArgument("missing product identifier")
+        skPopulateError(outError, with: error)
+        return error.statusCode
+    }
+
+    let optionPayloads: [SKPurchaseOptionPayload]
+    do {
+        optionPayloads = try skDecodeJSONIfPresent(optionsJSON, as: [SKPurchaseOptionPayload].self) ?? []
+    } catch {
+        skPopulateError(outError, with: error)
+        return skStatus(for: error)
+    }
+
+    return skBlockOnMainActorAsync(
+        timeoutSeconds: 60,
+        work: {
+            guard #available(macOS 15.2, *) else {
+                throw SKBridgeError.notSupported(
+                    "Product.purchase(confirmIn:options:) requires macOS 15.2+"
                 )
-            case .userCancelled:
-                return try skEncodeJSON(
-                    SKPurchaseResultPayload(kind: "userCancelled", verificationResult: nil)
-                )
-            case .pending:
-                return try skEncodeJSON(
-                    SKPurchaseResultPayload(kind: "pending", verificationResult: nil)
-                )
-            @unknown default:
-                throw SKBridgeError.unknown("StoreKit returned an unknown purchase result")
             }
+            let product = try await skSingleProduct(for: String(cString: productID))
+            let confirmedWindow: NSWindow = try skBorrowWindow(
+                window,
+                context: "Product.purchase(confirmIn:options:)"
+            )
+            let options = try skBuildPurchaseOptions(from: optionPayloads, product: product)
+            let result = try await product.purchase(confirmIn: confirmedWindow, options: options)
+            return try skEncodeJSON(
+                try skPurchaseResultPayload(from: result, outTransaction: outTransaction)
+            )
         },
         onSuccess: { json in
             outResultJSON?.pointee = skCString(json)

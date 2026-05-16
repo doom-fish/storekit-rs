@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.1] - 2026-05-16
+
+### Added
+
+- Closed the remaining audited StoreKit 2 gaps with `Product::purchase_in_window(...)`, product formatting/localization helpers, `SubscriptionStatus::{updates,all}`, `PurchaseIntent::intents()`, `ExternalPurchase{,Link,CustomLink}`, App Store merchandising/advanced-commerce APIs, and typed framework-error decoding.
+- Added numbered examples `16_purchase_intent.rs` through `19_typed_errors.rs` plus new integration tests covering the newly wrapped surfaces.
+
+### Changed
+
+- `Transaction` now exposes advanced-commerce info when StoreKit includes it in transaction payloads.
+- `VerificationResult<Transaction>` and `VerificationResult<RenewalInfo>` now expose advanced-commerce info extracted from signed payload metadata.
+- Coverage documentation now reflects full audited StoreKit 2 coverage on macOS.
+
 ## [0.2.0] - 2026-05-16
 
 ### Added

@@ -1,4 +1,4 @@
-# StoreKit 2 coverage audit (v0.2.0)
+# StoreKit 2 coverage audit (v0.2.1)
 
 Scope: `StoreKit.framework` on macOS, focused on the StoreKit 2 Swift API surface used by this crate.
 
@@ -6,7 +6,7 @@ Legend:
 
 - ✅ implemented
 - 🟡 partial
-- ⏭️ skipped (unavailable on macOS, requires an injected AppKit scene/controller, or intentionally deferred new macOS 15.4+/26.x advanced-commerce APIs)
+- ⏭️ skipped (unavailable on macOS or intentionally omitted deprecated APIs)
 
 ## Product
 
@@ -14,14 +14,14 @@ Legend:
 | --- | --- | --- |
 | `Product.products(for:)` | ✅ | `Product::products_for(...)` |
 | `Product.purchase(options:)` | ✅ | `Product::purchase(...)` |
-| `Product.purchase(confirmIn:options:)` | ⏭️ | Requires caller-owned `NSWindow`; not exposed in headless-safe API |
+| `Product.purchase(confirmIn:options:)` | ✅ | `Product::purchase_in_window(...)` via caller-owned `NSWindowHandle` |
 | `Product.latestTransaction` | ✅ | `Product::latest_transaction()` |
 | `Product.currentEntitlements` / filtered entitlements | ✅ | `Product::current_entitlements()` via filtered transaction stream |
 | `Product.id`, `type`, `displayName`, `description`, `price`, `displayPrice` | ✅ | Exposed on `Product` |
 | `Product.isFamilyShareable` | ✅ | Exposed on `Product` |
 | `Product.subscription` | ✅ | Exposed on `Product` |
 | `Product.jsonRepresentation` | ✅ | Exposed as raw bytes |
-| `Product.priceFormatStyle` / locale formatting helpers | 🟡 | Raw display price preserved; locale-specific format style is not wrapped |
+| `Product.priceFormatStyle` / locale formatting helpers | ✅ | `ProductFormatting` + StoreKit enum/unit `localized_description()` helpers |
 
 ## Transaction
 
@@ -40,7 +40,7 @@ Legend:
 | Core transaction fields (`id`, `originalID`, dates, quantity, ownership, bundle, JWS, signed date`) | ✅ | Exposed on `TransactionData` |
 | `environment`, `reason`, `storefront`, `offer`, `currencyCode`, `appTransactionID` | ✅ | Exposed when available; absent on older runtimes remain `None` |
 | `beginRefundRequest(for:in:)` | 🟡 | Headless-safe wrapper auto-discovers the first `NSViewController`; returns `NotSupported` without one |
-| `advancedCommerceInfo` | ⏭️ | Deferred advanced-commerce payloads from newer macOS 15.4+/26.x APIs |
+| `advancedCommerceInfo` | ✅ | Exposed on `Transaction` plus `VerificationResult<Transaction>::advanced_commerce_info()` |
 
 ## AppStore
 
@@ -52,7 +52,9 @@ Legend:
 | `AppStore.requestReview(in:)` | ✅ | `AppStore::request_review()`; requires discovered `NSViewController` |
 | `AppStore.presentOfferCodeRedeemSheet(from:)` | ✅ | `AppStore::present_offer_code_redeem_sheet()`; requires discovered `NSViewController` |
 | `AppStore.showManageSubscriptions(...)` | ⏭️ | Scene-based API remains unavailable on macOS StoreKit |
-| `AppStore.presentMerchandising(...)` | ⏭️ | macOS 26.2 advanced merchandising deferred |
+| `AppStore.presentMerchandising(...)` | ✅ | `AppStore::present_merchandising(...)` via caller-owned `NSWindowHandle` |
+| `AppStore.ageRatingCode` | ✅ | `AppStore::age_rating_code()` |
+| `AdvancedCommerceProduct` / advanced-commerce purchases | ✅ | `AdvancedCommerceProduct::{new,purchase,purchase_in_window,latest_transaction}` |
 
 ## Storefront
 
@@ -82,7 +84,14 @@ Legend:
 | `isEligibleForIntroOffer(for:)` | ✅ | `SubscriptionInfo::is_eligible_for_intro_offer_for(...)` |
 | `status(for:)` | ✅ | `SubscriptionInfo::status_for(...)` |
 | `status(transactionID:)` | ✅ | `SubscriptionInfo::status_for_transaction(...)` |
-| `Status.updates` / `Status.all` streams | 🟡 | Synchronous point queries implemented; stream surface intentionally deferred |
+| `Status.updates` / `Status.all` streams | ✅ | `SubscriptionStatus::{updates,all}()` |
+
+## PurchaseIntent
+
+| API | Status | Notes |
+| --- | --- | --- |
+| `PurchaseIntent` | ✅ | `PurchaseIntent` |
+| `PurchaseIntent.intents` | ✅ | `PurchaseIntent::intents()` |
 
 ## RenewalInfo
 
@@ -92,7 +101,7 @@ Legend:
 | `expirationReason`, `priceIncreaseStatus` | ✅ | Exposed as Rust enums |
 | `offer`, `environment`, `recentSubscriptionStartDate`, `renewalDate`, `renewalPrice`, `currency` | ✅ | Exposed when available |
 | `eligibleWinBackOfferIDs`, `appAccountToken`, `appTransactionID` | ✅ | Exposed when available |
-| `advancedCommerceInfo` | ⏭️ | Deferred advanced-commerce payloads |
+| `advancedCommerceInfo` | ✅ | Exposed via `VerificationResult<RenewalInfo>::advanced_commerce_info()` |
 
 ## RenewalState
 
@@ -112,7 +121,15 @@ Legend:
 | `promotionalOffer(_:compactJWS:)` | ✅ | `PromotionalOfferCompactJws` |
 | `introductoryOfferEligibility(compactJWS:)` | ✅ | `IntroductoryOfferEligibility` |
 | `winBackOffer(_:)` | ✅ | `WinBackOffer` via offer-id lookup on the fetched product |
-| `onStorefrontChange(...)` | 🟡 | Exposed as a constant continue/cancel policy; arbitrary Rust closures are not bridged |
+| `onStorefrontChange(...)` | ✅ | `PurchaseOption::OnStorefrontChange` |
+
+## ExternalPurchase
+
+| API | Status | Notes |
+| --- | --- | --- |
+| `ExternalPurchase` | ✅ | `ExternalPurchase::{can_present,present_notice_sheet}` |
+| `ExternalPurchaseLink` | ✅ | `ExternalPurchaseLink::{can_open,eligible_urls,open_url}` |
+| `ExternalPurchaseCustomLink` | ✅ | `ExternalPurchaseCustomLink::{is_eligible,show_notice,token}` |
 
 ## VerificationResult
 
@@ -141,6 +158,15 @@ Legend:
 | --- | --- | --- |
 | `Transaction.beginRefundRequest(for:in:)` | 🟡 | Headless-safe wrapper uses the first discovered `NSViewController` and otherwise returns `NotSupported` |
 | `RefundRequestStatus.success` / `userCancelled` | ✅ | `RefundRequestStatus` |
+
+## Typed framework errors
+
+| API | Status | Notes |
+| --- | --- | --- |
+| `StoreKit.StoreKitError` | ✅ | `StoreKitError::typed()` returns `TypedStoreKitError::StoreKitApi` |
+| `Product.PurchaseError` | ✅ | `StoreKitError::typed()` returns `TypedStoreKitError::ProductPurchase` |
+| `Transaction.RefundRequestError` | ✅ | `StoreKitError::typed()` returns `TypedStoreKitError::RefundRequest` |
+| `InvalidRequestError` | ✅ | `StoreKitError::typed()` returns `TypedStoreKitError::InvalidRequest` |
 
 ## Message
 

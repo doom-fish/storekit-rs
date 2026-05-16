@@ -5,6 +5,9 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::advanced_commerce::{
+    TransactionAdvancedCommerceInfo, TransactionAdvancedCommerceInfoPayload,
+};
 use crate::app_store::AppStoreEnvironment;
 use crate::error::{StoreKitError, VerificationFailure};
 use crate::ffi;
@@ -192,6 +195,7 @@ pub struct TransactionData {
 pub struct Transaction {
     handle: Option<NonNull<c_void>>,
     data: TransactionData,
+    advanced_commerce_info: Option<TransactionAdvancedCommerceInfo>,
 }
 
 impl Clone for Transaction {
@@ -203,6 +207,7 @@ impl Clone for Transaction {
         Self {
             handle,
             data: self.data.clone(),
+            advanced_commerce_info: self.advanced_commerce_info.clone(),
         }
     }
 }
@@ -308,6 +313,10 @@ impl Transaction {
         &self.data
     }
 
+    pub const fn advanced_commerce_info(&self) -> Option<&TransactionAdvancedCommerceInfo> {
+        self.advanced_commerce_info.as_ref()
+    }
+
     pub const fn has_live_handle(&self) -> bool {
         self.handle.is_some()
     }
@@ -361,18 +370,22 @@ impl Transaction {
         handle: *mut c_void,
         payload: TransactionPayload,
     ) -> Result<Self, StoreKitError> {
+        let (data, advanced_commerce_info) = payload.into_transaction_parts()?;
         Ok(Self {
             handle: NonNull::new(handle),
-            data: payload.into_transaction_data()?,
+            data,
+            advanced_commerce_info,
         })
     }
 
     pub(crate) fn from_snapshot_payload(
         payload: TransactionPayload,
     ) -> Result<Self, StoreKitError> {
+        let (data, advanced_commerce_info) = payload.into_transaction_parts()?;
         Ok(Self {
             handle: None,
-            data: payload.into_transaction_data()?,
+            data,
+            advanced_commerce_info,
         })
     }
 }
@@ -583,13 +596,20 @@ pub(crate) struct TransactionPayload {
     #[serde(rename = "appTransactionID")]
     app_transaction_id: Option<String>,
     offer: Option<TransactionOfferPayload>,
+    #[serde(rename = "advancedCommerceInfo")]
+    advanced_commerce_info: Option<TransactionAdvancedCommerceInfoPayload>,
     #[serde(rename = "jsonRepresentationBase64")]
     json_representation_base64: String,
 }
 
 impl TransactionPayload {
-    fn into_transaction_data(self) -> Result<TransactionData, StoreKitError> {
-        Ok(TransactionData {
+    fn into_transaction_parts(
+        self,
+    ) -> Result<(TransactionData, Option<TransactionAdvancedCommerceInfo>), StoreKitError> {
+        let advanced_commerce_info = self
+            .advanced_commerce_info
+            .map(TransactionAdvancedCommerceInfoPayload::into_transaction_advanced_commerce_info);
+        Ok((TransactionData {
             id: self.id,
             original_id: self.original_id,
             web_order_line_item_id: self.web_order_line_item_id,
@@ -624,6 +644,6 @@ impl TransactionPayload {
                 &self.json_representation_base64,
                 "transaction JSON representation",
             )?,
-        })
+        }, advanced_commerce_info))
     }
 }

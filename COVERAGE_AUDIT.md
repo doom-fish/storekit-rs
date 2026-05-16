@@ -1,10 +1,10 @@
 # storekit-rs coverage audit (vs MacOSX26.2.sdk)
 
 SDK_PUBLIC_SYMBOLS: 57
-VERIFIED: 40
-GAPS: 7
+VERIFIED: 47
+GAPS: 0
 EXEMPT: 10
-COVERAGE_PCT: 85.1%
+COVERAGE_PCT: 100.0%
 
 Scope notes:
 - Audited the macOS-reachable StoreKit 2 commerce surface in `StoreKit.framework/Versions/A/Modules/StoreKit.swiftmodule/arm64e-apple-macos.swiftinterface`.
@@ -55,17 +55,16 @@ Scope notes:
 | `AppStore.{canMakePayments,deviceVerificationID,sync,requestReview(in:),presentOfferCodeRedeemSheet(from:),Environment,Platform}` | enum/func/type family | `StoreKit.swiftinterface` | `AppStore`, `AppStoreEnvironment`, `AppStorePlatform` |
 | `AppTransaction` | struct | `StoreKit.swiftinterface` | `storekit::AppTransaction` |
 | `AppTransaction.{shared,refresh,appID,appTransactionID,appVersion,appVersionID,bundleID,environment,originalAppVersion,originalPurchaseDate,originalPlatform,preorderDate,jsonRepresentation}` | static func + property family | `StoreKit.swiftinterface` | `AppTransaction` fields + `VerificationMetadata` |
+| `Product.purchase(confirmIn:options:)` | instance func | `StoreKit.swiftinterface` | `Product::purchase_in_window(...)` via `NSWindowHandle` |
+| `Product formatting/localization helpers` | property/func family | `StoreKit.swiftinterface` | `ProductFormatting`, `SubscriptionPeriod` convenience constructors, and `localized_description()` helpers |
+| `Product.SubscriptionInfo.Status.{updates,all}` | async stream family | `StoreKit.swiftinterface` | `SubscriptionStatus::{updates,all}()` |
+| `PurchaseIntent` family | struct + async sequence | `StoreKit.swiftinterface` | `PurchaseIntent`, `PurchaseIntent::intents()` |
+| `ExternalPurchase{,Link,CustomLink}` families | enum families | `StoreKit.swiftinterface` | `ExternalPurchase`, `ExternalPurchaseLink`, `ExternalPurchaseCustomLink` |
+| `AppStore merchandising / advanced-commerce family` | func/type family | `StoreKit.swiftinterface` | `AppStore::present_merchandising(...)`, `AppStore::age_rating_code()`, `AdvancedCommerceProduct`, and advanced-commerce info helpers |
+| `Typed StoreKit error enums` | enum/struct family | `StoreKit.swiftinterface` | `StoreKitError::typed()` + typed `StoreKit`, purchase, refund-request, and invalid-request errors |
 
 ## 🔴 GAPS
-| Symbol | Kind | Header | Notes |
-| --- | --- | --- | --- |
-| `Product.purchase(confirmIn:options:)` | instance func | `StoreKit.swiftinterface` | No Rust API accepts a caller-owned `NSWindow`; the bridge only invokes `purchase(options:)`. |
-| `Product formatting/localization helpers` | property/func family | `StoreKit.swiftinterface` | Missing `priceFormatStyle`, `subscriptionPeriodFormatStyle`, `subscriptionPeriodUnitFormatStyle`, `SubscriptionPeriod` convenience/formatting APIs, and StoreKit enum/unit `localizedDescription` helpers. |
-| `Product.SubscriptionInfo.Status.{updates,all}` | async stream family | `StoreKit.swiftinterface` | Rust exposes point queries only; there is no wrapper for status update streams or the all-groups async stream. |
-| `PurchaseIntent` family | struct + async sequence | `StoreKit.swiftinterface` | No wrapper for `PurchaseIntent`, `PurchaseIntent.intents`, or purchase-intent observation on macOS 14.4+. |
-| `ExternalPurchase{,Link,CustomLink}` families | enum families | `StoreKit.swiftinterface` | Regulatory external-purchase notice/link APIs are not wrapped. |
-| `AppStore merchandising / advanced-commerce family` | func/type family | `StoreKit.swiftinterface` | Missing `presentMerchandising`, `AppStoreMerchandisingKind`, `ageRatingCode`, `AdvancedCommerceProduct`, `Transaction.AdvancedCommerceInfo`, and `RenewalInfo.AdvancedCommerceInfo`. |
-| `Typed StoreKit error enums` | enum/struct family | `StoreKit.swiftinterface` | Errors collapse into `StoreKitError::Framework` / `StoreKitError::NotSupported`; there is no typed Rust surface for `StoreKit.StoreKitError`, `Product.PurchaseError`, `Transaction.RefundRequestError`, or `InvalidRequestError`. |
+None.
 
 ## ⏭️ EXEMPT
 | Symbol | Kind | Header | Reason | SDK attribute |

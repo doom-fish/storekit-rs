@@ -2,7 +2,7 @@
 
 Safe Rust bindings for Apple's [StoreKit](https://developer.apple.com/documentation/storekit) framework on macOS.
 
-> **Status:** v0.2.0 expands the StoreKit 2 bridge across product lookup, purchases, transaction streams, storefronts, app transactions, subscription status, renewal info, refund entry points, receipt helpers, and verification metadata.
+> **Status:** v0.2.1 closes the remaining audited StoreKit 2 gaps with windowed purchases, formatting/localization helpers, subscription-status streams, purchase intents, external-purchase flows, advanced-commerce APIs, and typed framework errors.
 
 ## Quick start
 
@@ -22,10 +22,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Highlights
 
-- `Product::products_for(...)`, `Product::purchase(...)`, `Product::latest_transaction()`, and `Product::current_entitlements()`
+- `Product::products_for(...)`, `Product::purchase(...)`, `Product::purchase_in_window(...)`, `Product::latest_transaction()`, and `Product::current_entitlements()`
+- Product formatting/localization helpers expose `StoreKit` format styles, `SubscriptionPeriod` convenience constructors, and enum/unit `localized_description()` helpers
 - `PurchaseOption` covers quantity, app-account tokens, custom payloads, promotional offers, win-back offers, and storefront-change policies
-- `Transaction` exposes `all`, `current_entitlements`, `updates`, `unfinished`, filtered product streams, `latest_for`, `current_entitlement_for`, verification, finishing, and refund helpers
-- `SubscriptionInfo::status_for(...)` and `status_for_transaction(...)` surface renewal state, verified transactions, and verified renewal info
+- `Transaction` exposes `all`, `current_entitlements`, `updates`, `unfinished`, filtered product streams, `latest_for`, `current_entitlement_for`, verification, finishing, refund helpers, and advanced-commerce info
+- `SubscriptionInfo::status_for(...)`, `status_for_transaction(...)`, `SubscriptionStatus::updates()`, and `SubscriptionStatus::all()` surface renewal state plus status streams
+- `PurchaseIntent::intents()` and `ExternalPurchase{,Link,CustomLink}` cover the newer `StoreKit` purchase-intent and regulatory-link families
+- `AppStore` now includes merchandising presentation, age-rating lookups, and advanced-commerce product purchase support
+- `StoreKitError::typed()` recovers typed `StoreKit`, purchase, refund-request, and invalid-request framework errors
 - `Storefront::current()` and `Storefront::updates()` wrap the `StoreKit` storefront APIs
 - `AppTransaction::shared()` and `AppTransaction::refresh()` expose app-level verification results
 - `ReceiptValidator` reads the local app receipt and decodes JWS payloads without publishing or mutating store state
@@ -50,6 +54,10 @@ The crate ships with numbered examples for each logical area:
 - `13_renewal_state`
 - `14_purchase_option`
 - `15_verification_result`
+- `16_purchase_intent`
+- `17_external_purchase`
+- `18_advanced_commerce`
+- `19_typed_errors`
 
 Run them all with:
 
@@ -60,7 +68,8 @@ for ex in examples/*.rs; do cargo run --example "$(basename "$ex" .rs)"; done
 ## Notes
 
 - `StoreKit.Message` is unavailable on macOS, so the message module reports `NotSupported` there.
-- Refund, review, and offer-code presentation helpers require an `NSViewController`-backed window; headless callers get `NotSupported` instead of hanging.
+- Refund, review, and offer-code presentation helpers still require an `NSViewController`-backed window; headless callers get `NotSupported` instead of hanging.
+- Window-based purchase and merchandising APIs accept caller-owned `NSWindowHandle` values when the host app has an `AppKit` window to lend to `StoreKit`.
 - The crate does **not** publish or call `cargo publish`; release tagging is separate from drip-publisher rollout.
 
 ## License

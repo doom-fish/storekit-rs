@@ -140,7 +140,7 @@ impl Product {
 }
 
 #[derive(Debug, Deserialize)]
-struct ProductPayload {
+pub(crate) struct ProductPayload {
     id: String,
     #[serde(rename = "displayName")]
     display_name: String,
@@ -162,7 +162,7 @@ struct ProductPayload {
 }
 
 impl ProductPayload {
-    fn into_product(self) -> Result<Product, StoreKitError> {
+    pub(crate) fn into_product(self) -> Result<Product, StoreKitError> {
         Ok(Product {
             id: self.id,
             display_name: self.display_name,

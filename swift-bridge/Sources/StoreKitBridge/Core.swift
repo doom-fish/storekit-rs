@@ -84,6 +84,39 @@ struct SKFrameworkErrorPayload: Encodable {
     let localizedDescription: String
 }
 
+struct SKTypedStoreKitErrorPayload: Encodable {
+    let kind = "storekitError"
+    let code: String
+    let errorDescription: String?
+    let failureReason: String?
+    let recoverySuggestion: String?
+    let underlyingDomain: String?
+    let underlyingCode: Int?
+    let underlyingDescription: String?
+}
+
+struct SKProductPurchaseErrorPayload: Encodable {
+    let kind = "purchaseError"
+    let code: String
+    let errorDescription: String?
+    let failureReason: String?
+    let recoverySuggestion: String?
+}
+
+struct SKRefundRequestErrorPayload: Encodable {
+    let kind = "refundRequestError"
+    let code: String
+    let errorDescription: String?
+    let failureReason: String?
+    let recoverySuggestion: String?
+}
+
+struct SKInvalidRequestErrorPayload: Encodable {
+    let kind = "invalidRequestError"
+    let code: Int64
+    let message: String
+}
+
 struct SKVerificationErrorPayload: Codable {
     let kind: String
     let code: String
@@ -96,11 +129,77 @@ struct SKVerificationErrorPayload: Codable {
     }
 }
 
+func skStoreKitErrorCode(_ error: StoreKit.StoreKitError) -> String {
+    switch error {
+    case .unknown:
+        return "unknown"
+    case .userCancelled:
+        return "userCancelled"
+    case .networkError:
+        return "networkError"
+    case .systemError:
+        return "systemError"
+    case .notAvailableInStorefront:
+        return "notAvailableInStorefront"
+    @unknown default:
+        if #available(macOS 15.4, *), case .unsupported = error {
+            return "unsupported"
+        }
+        if #available(macOS 12.3, *), case .notEntitled = error {
+            return "notEntitled"
+        }
+        return "unknown"
+    }
+}
+
+func skProductPurchaseErrorCode(_ error: Product.PurchaseError) -> String {
+    switch error {
+    case .invalidQuantity:
+        return "invalidQuantity"
+    case .productUnavailable:
+        return "productUnavailable"
+    case .purchaseNotAllowed:
+        return "purchaseNotAllowed"
+    case .ineligibleForOffer:
+        return "ineligibleForOffer"
+    case .invalidOfferIdentifier:
+        return "invalidOfferIdentifier"
+    case .invalidOfferPrice:
+        return "invalidOfferPrice"
+    case .invalidOfferSignature:
+        return "invalidOfferSignature"
+    case .missingOfferParameters:
+        return "missingOfferParameters"
+    @unknown default:
+        return "unknown"
+    }
+}
+
+func skRefundRequestErrorCode(_ error: Transaction.RefundRequestError) -> String {
+    switch error {
+    case .duplicateRequest:
+        return "duplicateRequest"
+    case .failed:
+        return "failed"
+    @unknown default:
+        return "unknown"
+    }
+}
+
+func skLocalizedErrorParts(_ error: any LocalizedError) -> (String?, String?, String?) {
+    (error.errorDescription, error.failureReason, error.recoverySuggestion)
+}
+
 func skStatus(for error: Error) -> Int32 {
     if let bridgeError = error as? SKBridgeError {
         return bridgeError.statusCode
     }
-    if error is StoreKit.VerificationResult<Transaction>.VerificationError {
+    if error is StoreKit.VerificationResult<Transaction>.VerificationError
+        || error is StoreKit.VerificationResult<Product.SubscriptionInfo.RenewalInfo>.VerificationError
+    {
+        return SK_VERIFICATION_ERROR
+    }
+    if #available(macOS 13.0, *), error is StoreKit.VerificationResult<AppTransaction>.VerificationError {
         return SK_VERIFICATION_ERROR
     }
     return SK_FRAMEWORK_ERROR
@@ -147,6 +246,56 @@ func skPopulateError(
             localizedDescription: verificationError.localizedDescription
         )
         message = (try? skEncodeJSON(payload)) ?? verificationError.localizedDescription
+    } else if #available(macOS 13.0, *), let verificationError = error as? StoreKit.VerificationResult<AppTransaction>.VerificationError {
+        let payload = SKVerificationErrorPayload(
+            code: skVerificationErrorCode(verificationError),
+            localizedDescription: verificationError.localizedDescription
+        )
+        message = (try? skEncodeJSON(payload)) ?? verificationError.localizedDescription
+    } else if let verificationError = error as? StoreKit.VerificationResult<Product.SubscriptionInfo.RenewalInfo>.VerificationError {
+        let payload = SKVerificationErrorPayload(
+            code: skVerificationErrorCode(verificationError),
+            localizedDescription: verificationError.localizedDescription
+        )
+        message = (try? skEncodeJSON(payload)) ?? verificationError.localizedDescription
+    } else if #available(macOS 12.3, *), let storeKitError = error as? StoreKit.StoreKitError {
+        let localized = skLocalizedErrorParts(storeKitError)
+        let nsError = error as NSError
+        let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? NSError
+        let payload = SKTypedStoreKitErrorPayload(
+            code: skStoreKitErrorCode(storeKitError),
+            errorDescription: localized.0,
+            failureReason: localized.1,
+            recoverySuggestion: localized.2,
+            underlyingDomain: underlyingError?.domain,
+            underlyingCode: underlyingError?.code,
+            underlyingDescription: underlyingError?.localizedDescription
+        )
+        message = (try? skEncodeJSON(payload)) ?? nsError.localizedDescription
+    } else if #available(macOS 12.3, *), let purchaseError = error as? Product.PurchaseError {
+        let localized = skLocalizedErrorParts(purchaseError)
+        let payload = SKProductPurchaseErrorPayload(
+            code: skProductPurchaseErrorCode(purchaseError),
+            errorDescription: localized.0,
+            failureReason: localized.1,
+            recoverySuggestion: localized.2
+        )
+        message = (try? skEncodeJSON(payload)) ?? purchaseError.localizedDescription
+    } else if #available(macOS 12.3, *), let refundError = error as? Transaction.RefundRequestError {
+        let localized = skLocalizedErrorParts(refundError)
+        let payload = SKRefundRequestErrorPayload(
+            code: skRefundRequestErrorCode(refundError),
+            errorDescription: localized.0,
+            failureReason: localized.1,
+            recoverySuggestion: localized.2
+        )
+        message = (try? skEncodeJSON(payload)) ?? refundError.localizedDescription
+    } else if #available(macOS 15.4, *), let invalidRequestError = error as? InvalidRequestError {
+        let payload = SKInvalidRequestErrorPayload(
+            code: invalidRequestError.code,
+            message: invalidRequestError.message
+        )
+        message = (try? skEncodeJSON(payload)) ?? invalidRequestError.localizedDescription
     } else {
         let nsError = error as NSError
         let payload = SKFrameworkErrorPayload(
@@ -242,4 +391,11 @@ func skKeyWindowController() -> NSViewController? {
     return windows.first(where: { $0.isKeyWindow })?.contentViewController
         ?? windows.first(where: { $0.isVisible })?.contentViewController
         ?? windows.first?.contentViewController
+}
+
+func skBorrowWindow(_ ptr: UnsafeMutableRawPointer?, context: String) throws -> NSWindow {
+    guard let ptr else {
+        throw SKBridgeError.invalidArgument("missing NSWindow for \(context)")
+    }
+    return Unmanaged<NSWindow>.fromOpaque(ptr).takeUnretainedValue()
 }
