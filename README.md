@@ -70,7 +70,7 @@ for ex in examples/*.rs; do cargo run --example "$(basename "$ex" .rs)"; done
 
 ## Async API
 
-Enable the `async` feature to access StoreKit 2's async Swift APIs as standard Rust `Future`s:
+Enable the `async` feature to access `StoreKit` 2's async Swift APIs as standard Rust `Future`s:
 
 ```toml
 [dependencies]
