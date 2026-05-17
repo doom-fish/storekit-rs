@@ -85,7 +85,7 @@ pub(crate) struct AppTransactionPayload {
 }
 
 impl AppTransactionPayload {
-    fn into_app_transaction(self) -> Result<AppTransaction, StoreKitError> {
+    pub(crate) fn into_app_transaction(self) -> Result<AppTransaction, StoreKitError> {
         Ok(AppTransaction {
             app_id: self.app_id,
             app_transaction_id: self.app_transaction_id,

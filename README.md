@@ -2,7 +2,7 @@
 
 Safe Rust bindings for Apple's [StoreKit](https://developer.apple.com/documentation/storekit) framework on macOS.
 
-> **Status:** v0.2.1 closes the remaining audited StoreKit 2 gaps with windowed purchases, formatting/localization helpers, subscription-status streams, purchase intents, external-purchase flows, advanced-commerce APIs, and typed framework errors.
+> **Status:** v0.3.0 adds an `async_api` module gated on `--features async`, wrapping StoreKit 2's Swift async APIs as Rust `Future`s via `doom_fish_utils::completion`.
 
 ## Quick start
 
@@ -58,12 +58,36 @@ The crate ships with numbered examples for each logical area:
 - `17_external_purchase`
 - `18_advanced_commerce`
 - `19_typed_errors`
+- `20_async_products` *(requires `--features async`)*
+- `21_async_app_transaction` *(requires `--features async`)*
+- `22_async_storefront` *(requires `--features async`)*
 
 Run them all with:
 
 ```bash
 for ex in examples/*.rs; do cargo run --example "$(basename "$ex" .rs)"; done
 ```
+
+## Async API
+
+Enable the `async` feature to access StoreKit 2's async Swift APIs as standard Rust `Future`s:
+
+```toml
+[dependencies]
+storekit = { version = "0.3", features = ["async"] }
+pollster = "0.3"  # or any async runtime
+```
+
+```rust,no_run
+use storekit::async_api::*;
+
+fn main() {
+    let products = pollster::block_on(products_async(["com.example.pro"]));
+    println!("{:?}", products);
+}
+```
+
+The following futures are available: `products_async`, `purchase_async`, `request_review_async`, `show_manage_subscriptions_async`, `app_transaction_shared_async`, `storefront_current_async`.
 
 ## Notes
 

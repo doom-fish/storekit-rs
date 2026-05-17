@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0] - 2026-05-17
+
+### Added
+
+- `async_api` module (enabled by `--features async`) providing Rust `Future`-based wrappers over StoreKit 2's async Swift APIs using `doom_fish_utils::completion`:
+  - `products_async(ids)` — fetch products by identifier
+  - `purchase_async(product, options)` — purchase a product, returning a `VerificationResult<Transaction>`
+  - `request_review_async()` — request an App Store review
+  - `show_manage_subscriptions_async()` — open the subscription management sheet (always `NotSupported` on macOS)
+  - `app_transaction_shared_async()` — fetch the verified `AppTransaction`
+  - `storefront_current_async()` — fetch the current `Storefront` (if set)
+- Three new numbered examples: `20_async_products`, `21_async_app_transaction`, `22_async_storefront`.
+- New `doom-fish-utils` dependency (path = `"../doom-fish-utils"`) for `AsyncCompletion` / `AsyncCompletionFuture`.
+
 ## [0.2.1] - 2026-05-16
 
 ### Added

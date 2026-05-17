@@ -237,6 +237,55 @@ extern "C" {
         out_context_json: *mut *mut c_char,
         out_error_message: *mut *mut c_char,
     ) -> i32;
+
+    // -------------------------------------------------------------------------
+    // Async callback-based FFI (used by the `async` feature)
+    // -------------------------------------------------------------------------
+
+    pub fn sk_products_async(
+        identifiers_json: *const c_char,
+        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        ctx: *mut c_void,
+    );
+
+    pub fn sk_product_purchase_async(
+        product_id: *const c_char,
+        options_json: *const c_char,
+        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        ctx: *mut c_void,
+    );
+
+    /// Read the JSON string out of a retained `SKPurchaseAsyncResult`.
+    /// Returns a `strdup`'d C string — caller must free with `sk_string_free`.
+    pub fn sk_purchase_async_result_json(ptr: *mut c_void) -> *mut c_char;
+
+    /// Steal the live transaction handle from a retained `SKPurchaseAsyncResult`.
+    /// Returns null when the result is not a `.success`.
+    /// Transfers handle ownership to the caller.
+    pub fn sk_purchase_async_result_take_handle(ptr: *mut c_void) -> *mut c_void;
+
+    /// Release a retained `SKPurchaseAsyncResult`.
+    pub fn sk_purchase_async_result_release(ptr: *mut c_void);
+
+    pub fn sk_app_store_request_review_async(
+        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        ctx: *mut c_void,
+    );
+
+    pub fn sk_app_store_show_manage_subscriptions_async(
+        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        ctx: *mut c_void,
+    );
+
+    pub fn sk_app_transaction_shared_async(
+        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        ctx: *mut c_void,
+    );
+
+    pub fn sk_storefront_current_async(
+        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        ctx: *mut c_void,
+    );
 }
 
 pub mod status {

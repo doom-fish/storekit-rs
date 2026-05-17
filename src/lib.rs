@@ -6,6 +6,10 @@
     clippy::must_use_candidate
 )]
 
+#[cfg(feature = "async")]
+#[cfg_attr(docsrs, doc(cfg(feature = "async")))]
+pub mod async_api;
+
 pub mod advanced_commerce;
 pub mod app_store;
 pub mod app_transaction;
