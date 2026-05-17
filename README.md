@@ -79,15 +79,19 @@ pollster = "0.3"  # or any async runtime
 ```
 
 ```rust,no_run
-use storekit::async_api::*;
+use storekit::async_api::AsyncProducts;
 
 fn main() {
-    let products = pollster::block_on(products_async(["com.example.pro"]));
+    let products = pollster::block_on(async {
+        AsyncProducts::fetch(["com.example.pro"])
+            .expect("invalid identifier")
+            .await
+    });
     println!("{:?}", products);
 }
 ```
 
-The following futures are available: `products_async`, `purchase_async`, `request_review_async`, `show_manage_subscriptions_async`, `app_transaction_shared_async`, `storefront_current_async`.
+The following async types are available: [`AsyncProducts`], [`AsyncPurchase`], [`AsyncAppStore`], [`AsyncAppTransaction`], [`AsyncStorefront`].
 
 ## Notes
 

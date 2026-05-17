@@ -32,7 +32,9 @@ pub unsafe fn take_string(ptr: *mut c_char) -> Option<String> {
     if ptr.is_null() {
         return None;
     }
+    // SAFETY: caller guarantees ptr is a valid, NUL-terminated C string.
     let string = CStr::from_ptr(ptr).to_string_lossy().into_owned();
+    // SAFETY: ptr was allocated by the Swift bridge (sk_string_free is the matching free).
     ffi::sk_string_free(ptr);
     Some(string)
 }
@@ -41,6 +43,8 @@ pub unsafe fn parse_json_ptr<T: DeserializeOwned>(
     ptr: *mut c_char,
     context: &str,
 ) -> Result<T, StoreKitError> {
+    // SAFETY: caller guarantees ptr is either null or a valid, NUL-terminated
+    // C string allocated by the Swift bridge.
     let json = take_string(ptr).ok_or_else(|| {
         StoreKitError::InvalidArgument(format!("missing JSON payload for {context}"))
     })?;
@@ -63,6 +67,8 @@ pub unsafe fn parse_optional_json_ptr<T: DeserializeOwned>(
 }
 
 pub unsafe fn error_from_status(status: i32, err_msg: *mut c_char) -> StoreKitError {
+    // SAFETY: caller guarantees err_msg is either null or a valid, NUL-terminated
+    // C string allocated by the Swift bridge (ownership is transferred here).
     crate::error::from_swift(status, err_msg)
 }
 

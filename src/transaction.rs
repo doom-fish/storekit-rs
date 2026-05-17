@@ -201,6 +201,9 @@ pub struct Transaction {
 impl Clone for Transaction {
     fn clone(&self) -> Self {
         let handle = self.handle.map(|handle| {
+            // SAFETY: handle is a valid, non-null StoreKit transaction pointer maintained
+            // by this Transaction.  sk_transaction_retain increments the retain count
+            // and returns the same pointer (never null for a live transaction).
             let retained = unsafe { ffi::sk_transaction_retain(handle.as_ptr()) };
             NonNull::new(retained).expect("StoreKit transaction retain returned null")
         });
@@ -215,6 +218,9 @@ impl Clone for Transaction {
 impl Drop for Transaction {
     fn drop(&mut self) {
         if let Some(handle) = self.handle {
+            // SAFETY: handle is a valid, non-null StoreKit transaction pointer that
+            // this Transaction uniquely owns (or co-owns with a matching retain from
+            // Clone).  Drop is the unique release point per ownership token.
             unsafe { ffi::sk_transaction_release(handle.as_ptr()) };
         }
     }

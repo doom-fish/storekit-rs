@@ -53,6 +53,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use doom_fish_utils::completion::{error_from_cstr, AsyncCompletion, AsyncCompletionFuture};
+use doom_fish_utils::panic_safe::catch_user_panic;
 
 use crate::app_transaction::{AppTransaction, AppTransactionPayload};
 use crate::error::StoreKitError;
@@ -71,7 +72,15 @@ use crate::verification_result::{VerificationResult, VerificationResultPayload};
 /// The caller's Swift thunk passes a `&str`-borrowed `CStr` as `UnsafeRawPointer`.
 /// We copy it to an owned `String` immediately so the borrow lifetime in Swift
 /// is satisfied before the callback returns.
+///
+/// # Safety
+///
+/// `result` must be a valid, non-null pointer to a NUL-terminated C string that
+/// remains alive for the entire duration of this call.  The pointer is borrowed
+/// (not freed) — ownership stays with the Swift caller.
 unsafe fn json_from_result_ptr(result: *const c_void) -> String {
+    // SAFETY: caller guarantees result is a valid, NUL-terminated C string
+    // for the duration of this call.
     CStr::from_ptr(result.cast::<i8>())
         .to_string_lossy()
         .into_owned()
@@ -82,15 +91,27 @@ unsafe fn json_from_result_ptr(result: *const c_void) -> String {
 // ============================================================================
 
 extern "C" fn products_cb(result: *const c_void, error: *const i8, ctx: *mut c_void) {
-    if !error.is_null() {
-        let msg = unsafe { error_from_cstr(error) };
-        unsafe { AsyncCompletion::<String>::complete_err(ctx, msg) };
-    } else if !result.is_null() {
-        let json = unsafe { json_from_result_ptr(result) };
-        unsafe { AsyncCompletion::complete_ok(ctx, json) };
-    } else {
-        unsafe { AsyncCompletion::<String>::complete_err(ctx, "no result from sk_products_async".into()) };
-    }
+    catch_user_panic("products_cb", || {
+        if !error.is_null() {
+            // SAFETY: error is a NUL-terminated C string, valid for this callback invocation.
+            let msg = unsafe { error_from_cstr(error) };
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe { AsyncCompletion::<String>::complete_err(ctx, msg) };
+        } else if !result.is_null() {
+            // SAFETY: result is a NUL-terminated C string, valid for this callback invocation.
+            let json = unsafe { json_from_result_ptr(result) };
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe { AsyncCompletion::complete_ok(ctx, json) };
+        } else {
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe {
+                AsyncCompletion::<String>::complete_err(
+                    ctx,
+                    "no result from sk_products_async".into(),
+                );
+            };
+        }
+    });
 }
 
 /// Future for [`AsyncProducts::fetch`].
@@ -167,22 +188,38 @@ impl AsyncProducts {
 struct RawPurchaseBox(*mut c_void);
 unsafe impl Send for RawPurchaseBox {}
 
-extern "C" fn purchase_cb(result: *const c_void, error: *const i8, ctx: *mut c_void) {
-    if !error.is_null() {
-        let msg = unsafe { error_from_cstr(error) };
-        unsafe { AsyncCompletion::<RawPurchaseBox>::complete_err(ctx, msg) };
-    } else if !result.is_null() {
-        // result_ptr is a *retained* SKPurchaseAsyncResult — take ownership.
-        let boxed = RawPurchaseBox(result.cast_mut());
-        unsafe { AsyncCompletion::complete_ok(ctx, boxed) };
-    } else {
-        unsafe {
-            AsyncCompletion::<RawPurchaseBox>::complete_err(
-                ctx,
-                "no result from sk_product_purchase_async".into(),
-            );
-        };
+impl Drop for RawPurchaseBox {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            // SAFETY: self.0 is a retained SKPurchaseAsyncResult that this wrapper
+            // uniquely owns.  Drop is the sole release point and runs exactly once.
+            unsafe { crate::ffi::sk_purchase_async_result_release(self.0) };
+        }
     }
+}
+
+extern "C" fn purchase_cb(result: *const c_void, error: *const i8, ctx: *mut c_void) {
+    catch_user_panic("purchase_cb", || {
+        if !error.is_null() {
+            // SAFETY: error is a NUL-terminated C string, valid for this callback invocation.
+            let msg = unsafe { error_from_cstr(error) };
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe { AsyncCompletion::<RawPurchaseBox>::complete_err(ctx, msg) };
+        } else if !result.is_null() {
+            // result_ptr is a *retained* SKPurchaseAsyncResult — take ownership.
+            let boxed = RawPurchaseBox(result.cast_mut());
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe { AsyncCompletion::complete_ok(ctx, boxed) };
+        } else {
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe {
+                AsyncCompletion::<RawPurchaseBox>::complete_err(
+                    ctx,
+                    "no result from sk_product_purchase_async".into(),
+                );
+            };
+        }
+    });
 }
 
 /// Future for [`AsyncPurchase::buy`].
@@ -203,11 +240,11 @@ impl Future for PurchaseFuture {
         Pin::new(&mut self.inner).poll(cx).map(|r| {
             let raw_box = r.map_err(StoreKitError::Unknown)?;
             let ptr = raw_box.0;
-            // SAFETY: ptr is a retained Swift SKPurchaseAsyncResult; we own it
-            // and must release it before returning.
+            // SAFETY: ptr is a retained Swift SKPurchaseAsyncResult owned by raw_box.
+            // raw_box's Drop impl calls sk_purchase_async_result_release, so the
+            // pointer is released even if extract_purchase_result panics or returns early.
             let result = unsafe { extract_purchase_result(ptr) };
-            // Release the box regardless of parse outcome.
-            unsafe { crate::ffi::sk_purchase_async_result_release(ptr) };
+            // raw_box drops here, releasing the pointer.
             result
         })
     }
@@ -274,13 +311,18 @@ impl AsyncPurchase {
 // ============================================================================
 
 extern "C" fn void_cb(_result: *const c_void, error: *const i8, ctx: *mut c_void) {
-    if error.is_null() {
-        // Ignore result_ptr; void APIs use a sentinel 0x1 which we don't need.
-        unsafe { AsyncCompletion::complete_ok(ctx, ()) };
-    } else {
-        let msg = unsafe { error_from_cstr(error) };
-        unsafe { AsyncCompletion::<()>::complete_err(ctx, msg) };
-    }
+    catch_user_panic("void_cb", || {
+        if error.is_null() {
+            // Ignore result_ptr; void APIs use a sentinel 0x1 which we don't need.
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe { AsyncCompletion::complete_ok(ctx, ()) };
+        } else {
+            // SAFETY: error is a NUL-terminated C string, valid for this callback invocation.
+            let msg = unsafe { error_from_cstr(error) };
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe { AsyncCompletion::<()>::complete_err(ctx, msg) };
+        }
+    });
 }
 
 /// Future for [`AsyncAppStore::request_review`].
@@ -377,20 +419,27 @@ impl AsyncAppStore {
 // ============================================================================
 
 extern "C" fn app_transaction_cb(result: *const c_void, error: *const i8, ctx: *mut c_void) {
-    if !error.is_null() {
-        let msg = unsafe { error_from_cstr(error) };
-        unsafe { AsyncCompletion::<String>::complete_err(ctx, msg) };
-    } else if !result.is_null() {
-        let json = unsafe { json_from_result_ptr(result) };
-        unsafe { AsyncCompletion::complete_ok(ctx, json) };
-    } else {
-        unsafe {
-            AsyncCompletion::<String>::complete_err(
-                ctx,
-                "no result from sk_app_transaction_shared_async".into(),
-            );
-        };
-    }
+    catch_user_panic("app_transaction_cb", || {
+        if !error.is_null() {
+            // SAFETY: error is a NUL-terminated C string, valid for this callback invocation.
+            let msg = unsafe { error_from_cstr(error) };
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe { AsyncCompletion::<String>::complete_err(ctx, msg) };
+        } else if !result.is_null() {
+            // SAFETY: result is a NUL-terminated C string, valid for this callback invocation.
+            let json = unsafe { json_from_result_ptr(result) };
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe { AsyncCompletion::complete_ok(ctx, json) };
+        } else {
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe {
+                AsyncCompletion::<String>::complete_err(
+                    ctx,
+                    "no result from sk_app_transaction_shared_async".into(),
+                );
+            };
+        }
+    });
 }
 
 /// Future for [`AsyncAppTransaction::shared`].
@@ -459,16 +508,23 @@ impl AsyncAppTransaction {
 struct StorefrontResult(Option<String>);
 
 extern "C" fn storefront_cb(result: *const c_void, error: *const i8, ctx: *mut c_void) {
-    if !error.is_null() {
-        let msg = unsafe { error_from_cstr(error) };
-        unsafe { AsyncCompletion::<StorefrontResult>::complete_err(ctx, msg) };
-    } else if !result.is_null() {
-        let json = unsafe { json_from_result_ptr(result) };
-        unsafe { AsyncCompletion::complete_ok(ctx, StorefrontResult(Some(json))) };
-    } else {
-        // nil result_ptr means success but nil storefront
-        unsafe { AsyncCompletion::complete_ok(ctx, StorefrontResult(None)) };
-    }
+    catch_user_panic("storefront_cb", || {
+        if !error.is_null() {
+            // SAFETY: error is a NUL-terminated C string, valid for this callback invocation.
+            let msg = unsafe { error_from_cstr(error) };
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe { AsyncCompletion::<StorefrontResult>::complete_err(ctx, msg) };
+        } else if !result.is_null() {
+            // SAFETY: result is a NUL-terminated C string, valid for this callback invocation.
+            let json = unsafe { json_from_result_ptr(result) };
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe { AsyncCompletion::complete_ok(ctx, StorefrontResult(Some(json))) };
+        } else {
+            // nil result_ptr means success but nil storefront
+            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
+            unsafe { AsyncCompletion::complete_ok(ctx, StorefrontResult(None)) };
+        }
+    });
 }
 
 /// JSON envelope emitted by `sk_storefront_current_async`.

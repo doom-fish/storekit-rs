@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.1] - 2026-05-17
+
+### Fixed
+
+- **Async callbacks are now panic-safe**: wrapped all five `extern "C" fn` callback bodies
+  (`products_cb`, `purchase_cb`, `void_cb`, `app_transaction_cb`, `storefront_cb`) in
+  `doom_fish_utils::panic_safe::catch_user_panic` — a Rust panic escaping across the FFI
+  boundary into Swift is undefined behaviour.
+- **`RawPurchaseBox` now has a `Drop` impl** that calls `sk_purchase_async_result_release`;
+  previously, if `extract_purchase_result` returned early (e.g. JSON parse error), the
+  retained `SKPurchaseAsyncResult` pointer was leaked and never released.
+- **`// SAFETY:` comments** added to all `unsafe {}` blocks in `async_api.rs` and the
+  core helpers in `private.rs` and `transaction.rs`.
+- **`doom-fish-utils` version range** widened from `"0.1"` to `">=0.1, <0.3"` to allow
+  compatible patch/minor upgrades without a forced lockfile bump.
+
 ## [0.3.0] - 2026-05-17
 
 ### Added
