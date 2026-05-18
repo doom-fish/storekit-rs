@@ -10,15 +10,20 @@ use crate::private::{
 use crate::verification_result::VerificationResult;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Carries the app receipt used with `StoreKit` receipt helpers.
 pub struct AppReceipt {
+    /// Filesystem path returned by `StoreKit`.
     pub path: String,
+    /// Binary data returned by `StoreKit`.
     pub data: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
+/// Helpers for `StoreKit` receipts and signed payloads.
 pub struct ReceiptValidator;
 
 impl ReceiptValidator {
+    /// Fetches the current app receipt from `StoreKit`.
     pub fn current_receipt() -> Result<Option<AppReceipt>, StoreKitError> {
         let mut receipt_json = core::ptr::null_mut();
         let mut error_message = core::ptr::null_mut();
@@ -31,14 +36,17 @@ impl ReceiptValidator {
             .and_then(|payload| payload.map(AppReceiptPayload::into_receipt).transpose())
     }
 
+    /// Fetches `StoreKit.AppTransaction.shared`.
     pub fn shared_app_transaction() -> Result<VerificationResult<AppTransaction>, StoreKitError> {
         AppTransaction::shared()
     }
 
+    /// Fetches `StoreKit.AppTransaction.refresh()`.
     pub fn refresh_app_transaction() -> Result<VerificationResult<AppTransaction>, StoreKitError> {
         AppTransaction::refresh()
     }
 
+    /// Decodes a `StoreKit` JWS payload without verifying its signature.
     pub fn extract_unverified_payload(jws: &str) -> Result<Value, StoreKitError> {
         let mut segments = jws.split('.');
         let _header = segments.next().ok_or_else(|| {

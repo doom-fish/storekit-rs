@@ -11,18 +11,28 @@ use crate::transaction::{Transaction, TransactionStream};
 use crate::verification_result::VerificationResult;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Collects bundle context used alongside `StoreKit` APIs.
 pub struct StoreContext {
+    /// Bundle identifier reported by `StoreKit`.
     pub bundle_identifier: Option<String>,
+    /// Bundle display name reported by `StoreKit`.
     pub bundle_name: Option<String>,
+    /// Bundle version reported by `StoreKit`.
     pub bundle_version: Option<String>,
+    /// Receipt URL reported by `StoreKit`.
     pub receipt_url: Option<String>,
+    /// Whether `StoreKit` reports that payments can be made.
     pub can_make_payments: bool,
+    /// Device verification identifier reported by `StoreKit`.
     pub device_verification_id: Option<String>,
+    /// Whether `StoreKit` reported that the app is bundled.
     pub is_bundled: bool,
+    /// Executable path reported by `StoreKit`.
     pub executable_path: Option<String>,
 }
 
 impl StoreContext {
+    /// Fetches the current bundle context used alongside `StoreKit` APIs.
     pub fn current() -> Result<Self, StoreKitError> {
         let mut context_json = core::ptr::null_mut();
         let mut error_message = core::ptr::null_mut();
@@ -36,14 +46,17 @@ impl StoreContext {
         Ok(payload.into_store_context())
     }
 
+    /// Returns whether `StoreKit` reports that payments can be made.
     pub fn can_make_payments() -> Result<bool, StoreKitError> {
         AppStore::can_make_payments()
     }
 
+    /// Fetches the `StoreKit` device verification identifier.
     pub fn device_verification_id() -> Result<Option<String>, StoreKitError> {
         AppStore::device_verification_id()
     }
 
+    /// Fetches current `StoreKit` products for the supplied identifiers.
     pub fn current_products<I, S>(identifiers: I) -> Result<Vec<Product>, StoreKitError>
     where
         I: IntoIterator<Item = S>,
@@ -52,22 +65,27 @@ impl StoreContext {
         Product::products_for(identifiers)
     }
 
+    /// Creates a stream of current `StoreKit` entitlements.
     pub fn current_entitlements() -> Result<TransactionStream, StoreKitError> {
         Transaction::current_entitlements()
     }
 
+    /// Creates a stream of `StoreKit` transaction updates.
     pub fn transaction_updates() -> Result<TransactionStream, StoreKitError> {
         Transaction::updates()
     }
 
+    /// Fetches the current `StoreKit` storefront.
     pub fn current_storefront() -> Result<Option<Storefront>, StoreKitError> {
         Storefront::current()
     }
 
+    /// Fetches the shared `StoreKit` app transaction.
     pub fn app_transaction() -> Result<VerificationResult<AppTransaction>, StoreKitError> {
         AppTransaction::shared()
     }
 
+    /// Fetches the current app receipt used by `StoreKit`.
     pub fn receipt() -> Result<Option<AppReceipt>, StoreKitError> {
         ReceiptValidator::current_receipt()
     }

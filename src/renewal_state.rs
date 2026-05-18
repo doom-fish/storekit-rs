@@ -1,14 +1,22 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Product.SubscriptionInfo.RenewalState`.
 pub enum RenewalState {
+    /// Represents the `Subscribed` `StoreKit` case.
     Subscribed,
+    /// Represents the `Expired` `StoreKit` case.
     Expired,
+    /// Represents the `InBillingRetryPeriod` `StoreKit` case.
     InBillingRetryPeriod,
+    /// Represents the `InGracePeriod` `StoreKit` case.
     InGracePeriod,
+    /// Represents the `Revoked` `StoreKit` case.
     Revoked,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl RenewalState {
+    /// Returns the raw `StoreKit` string for this renewal state.
     pub fn as_str(&self) -> &str {
         match self {
             Self::Subscribed => "subscribed",
@@ -20,6 +28,7 @@ impl RenewalState {
         }
     }
 
+    /// Builds a renewal state from the raw `StoreKit` string.
     pub fn from_raw(raw: impl Into<String>) -> Self {
         match raw.into().as_str() {
             "subscribed" => Self::Subscribed,

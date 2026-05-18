@@ -10,29 +10,49 @@
 #[cfg_attr(docsrs, doc(cfg(feature = "async")))]
 pub mod async_api;
 
+/// `StoreKit` advanced-commerce wrappers and related value types.
 pub mod advanced_commerce;
+/// Wrappers for `StoreKit.AppStore` APIs.
 pub mod app_store;
+/// Wrappers for `StoreKit.AppTransaction`.
 pub mod app_transaction;
+/// Typed errors surfaced by the `StoreKit` framework.
 pub mod error;
+/// Wrappers for `StoreKit` external purchase APIs.
 pub mod external_purchase;
 mod ffi;
+/// Wrappers for `StoreKit.Message` and related APIs.
 pub mod message;
 mod private;
+/// Wrappers for `StoreKit.Product` and related value types.
 pub mod product;
 mod product_helpers;
+/// Wrappers for `StoreKit.PurchaseIntent` and its stream APIs.
 pub mod purchase_intent;
+/// Purchase options and results used with `StoreKit.Product.purchase`.
 pub mod purchase_option;
+/// Helpers for `StoreKit` receipts, app transactions, and JWS payloads.
 pub mod receipt_validator;
+/// Helpers for `StoreKit` refund request APIs.
 pub mod refund;
+/// Wrappers for `StoreKit.RenewalInfo` and related enums.
 pub mod renewal_info;
+/// Wrappers for `StoreKit.Product.SubscriptionInfo.RenewalState`.
 pub mod renewal_state;
+/// Helpers that collect bundle context used alongside `StoreKit` APIs.
 pub mod store_context;
+/// Wrappers for `StoreKit.Storefront` and storefront streams.
 pub mod storefront;
+/// Wrappers for `StoreKit.Product.SubscriptionInfo` value types.
 pub mod subscription;
+/// Wrappers for `StoreKit.Product.SubscriptionInfo.Status` and related APIs.
 pub mod subscription_info;
 mod subscription_status_stream;
+/// Wrappers for `StoreKit.Transaction` and transaction streams.
 pub mod transaction;
+/// Wrappers for `StoreKit.VerificationResult` and verification metadata.
 pub mod verification_result;
+/// Opaque `NSWindow` handles used with `StoreKit` APIs that present UI.
 pub mod window;
 
 pub use advanced_commerce::{

@@ -12,13 +12,18 @@ use crate::private::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Storefront`.
 pub struct Storefront {
+    /// Country code reported by `StoreKit`.
     pub country_code: String,
+    /// `StoreKit` identifier for this value.
     pub id: String,
+    /// Currency code reported by `StoreKit`.
     pub currency_code: Option<String>,
 }
 
 impl Storefront {
+    /// Fetches the current `StoreKit.Storefront`.
     pub fn current() -> Result<Option<Self>, StoreKitError> {
         let mut storefront_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
@@ -31,12 +36,14 @@ impl Storefront {
             .map(|payload| payload.map(StorefrontPayload::into_storefront))
     }
 
+    /// Creates a stream backed by `StoreKit.Storefront` updates.
     pub fn updates() -> Result<StorefrontStream, StoreKitError> {
         StorefrontStream::new()
     }
 }
 
 #[derive(Debug)]
+/// Wraps the `StoreKit` storefront update stream.
 pub struct StorefrontStream {
     handle: NonNull<c_void>,
     finished: bool,
@@ -60,15 +67,18 @@ impl StorefrontStream {
         })
     }
 
+    /// Returns whether this `StoreKit` stream has reached the end of the sequence.
     pub const fn is_finished(&self) -> bool {
         self.finished
     }
 
     #[allow(clippy::should_implement_trait)]
+    /// Waits for the next value from the `StoreKit` stream using the default timeout.
     pub fn next(&mut self) -> Result<Option<Storefront>, StoreKitError> {
         self.next_timeout(Duration::from_secs(30))
     }
 
+    /// Waits for the next value from the `StoreKit` stream up to the supplied timeout.
     pub fn next_timeout(&mut self, timeout: Duration) -> Result<Option<Storefront>, StoreKitError> {
         let mut storefront_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();

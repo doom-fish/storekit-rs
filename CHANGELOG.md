@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.2] - 2026-05-18
+
+### Changed
+
+- Added `///` docs across the public `src/` API surface (excluding `src/ffi.rs`), with StoreKit counterpart references for the wrapped modules, types, fields, variants, and methods; nightly rustdoc coverage now reports 100.0% documented items in `src/`.
+
 ## [0.3.1] - 2026-05-17
 
 ### Fixed

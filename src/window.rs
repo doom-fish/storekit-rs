@@ -2,6 +2,7 @@ use core::ffi::c_void;
 use std::ptr::NonNull;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Wraps a caller-owned `NSWindow *` for `StoreKit` APIs that present UI.
 pub struct NSWindowHandle(NonNull<c_void>);
 
 impl NSWindowHandle {
@@ -16,6 +17,7 @@ impl NSWindowHandle {
         NonNull::new(ptr).map(Self)
     }
 
+    /// Returns the raw `NSWindow *` passed to `StoreKit`.
     pub const fn as_raw(&self) -> *mut c_void {
         self.0.as_ptr()
     }

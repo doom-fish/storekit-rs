@@ -4,15 +4,22 @@ use crate::app_store::AppStoreEnvironment;
 use crate::transaction::{TransactionOffer, TransactionOfferPayload};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.RenewalInfo.ExpirationReason`.
 pub enum ExpirationReason {
+    /// Represents the `AutoRenewDisabled` `StoreKit` case.
     AutoRenewDisabled,
+    /// Represents the `BillingError` `StoreKit` case.
     BillingError,
+    /// Represents the `DidNotConsentToPriceIncrease` `StoreKit` case.
     DidNotConsentToPriceIncrease,
+    /// Represents the `ProductUnavailable` `StoreKit` case.
     ProductUnavailable,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl ExpirationReason {
+    /// Returns the raw `StoreKit` string for this expiration reason.
     pub fn as_str(&self) -> &str {
         match self {
             Self::AutoRenewDisabled => "autoRenewDisabled",
@@ -35,14 +42,20 @@ impl ExpirationReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.RenewalInfo.PriceIncreaseStatus`.
 pub enum PriceIncreaseStatus {
+    /// Represents the `NoIncreasePending` `StoreKit` case.
     NoIncreasePending,
+    /// The `StoreKit` flow is pending further action.
     Pending,
+    /// Represents the `Agreed` `StoreKit` case.
     Agreed,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl PriceIncreaseStatus {
+    /// Returns the raw `StoreKit` string for this price increase status.
     pub fn as_str(&self) -> &str {
         match self {
             Self::NoIncreasePending => "noIncreasePending",
@@ -63,23 +76,41 @@ impl PriceIncreaseStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.RenewalInfo`.
 pub struct RenewalInfo {
+    /// Original `StoreKit` transaction identifier.
     pub original_transaction_id: u64,
+    /// Current product identifier reported by `StoreKit`.
     pub current_product_id: String,
+    /// Whether `StoreKit` reports that the subscription will auto-renew.
     pub will_auto_renew: bool,
+    /// Preferred renewal product identifier reported by `StoreKit`.
     pub auto_renew_preference: Option<String>,
+    /// Expiration reason reported by `StoreKit`.
     pub expiration_reason: Option<ExpirationReason>,
+    /// Price increase status reported by `StoreKit`.
     pub price_increase_status: PriceIncreaseStatus,
+    /// Whether `StoreKit` reports that the subscription is in billing retry.
     pub is_in_billing_retry: bool,
+    /// Grace-period expiration date reported by `StoreKit`.
     pub grace_period_expiration_date: Option<String>,
+    /// Offer metadata reported by `StoreKit`.
     pub offer: Option<TransactionOffer>,
+    /// Environment reported by `StoreKit`.
     pub environment: Option<AppStoreEnvironment>,
+    /// Recent subscription start date reported by `StoreKit`.
     pub recent_subscription_start_date: String,
+    /// Renewal date reported by `StoreKit`.
     pub renewal_date: Option<String>,
+    /// Renewal price reported by `StoreKit`.
     pub renewal_price: Option<String>,
+    /// Currency code reported by `StoreKit`.
     pub currency_code: Option<String>,
+    /// Eligible win-back offer identifiers reported by `StoreKit`.
     pub eligible_win_back_offer_ids: Vec<String>,
+    /// App account token reported by `StoreKit`.
     pub app_account_token: Option<String>,
+    /// App transaction identifier reported by `StoreKit`.
     pub app_transaction_id: Option<String>,
 }
 

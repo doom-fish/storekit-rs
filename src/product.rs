@@ -21,15 +21,22 @@ use crate::transaction::{Transaction, TransactionStream};
 use crate::verification_result::VerificationResult;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Product.ProductType`.
 pub enum ProductType {
+    /// Represents the `Consumable` `StoreKit` case.
     Consumable,
+    /// Represents the `NonConsumable` `StoreKit` case.
     NonConsumable,
+    /// Represents the `AutoRenewable` `StoreKit` case.
     AutoRenewable,
+    /// Represents the `NonRenewing` `StoreKit` case.
     NonRenewing,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl ProductType {
+    /// Returns the raw `StoreKit` string for this product type.
     pub fn as_str(&self) -> &str {
         match self {
             Self::Consumable => "consumable",
@@ -52,21 +59,34 @@ impl ProductType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Product`.
 pub struct Product {
+    /// `StoreKit` identifier for this value.
     pub id: String,
+    /// Display name reported by `StoreKit`.
     pub display_name: String,
+    /// Description reported by `StoreKit`.
     pub description: String,
+    /// Price reported by `StoreKit`.
     pub price: String,
+    /// Localized display price reported by `StoreKit`.
     pub display_price: String,
+    /// Product type reported by `StoreKit`.
     pub product_type: ProductType,
+    /// Whether `StoreKit` reports that the product is family shareable.
     pub is_family_shareable: bool,
+    /// Subscription metadata reported by `StoreKit`.
     pub subscription: Option<SubscriptionInfo>,
+    /// Currency code reported by `StoreKit`.
     pub currency_code: Option<String>,
+    /// Locale identifier used by `StoreKit` for price formatting.
     pub price_locale_identifier: Option<String>,
+    /// Decoded JSON representation returned by `StoreKit`.
     pub json_representation: Vec<u8>,
 }
 
 impl Product {
+    /// Calls `StoreKit.Product.products(for:)`.
     pub fn products_for<I, S>(identifiers: I) -> Result<Vec<Self>, StoreKitError>
     where
         I: IntoIterator<Item = S>,
@@ -96,6 +116,7 @@ impl Product {
             .collect::<Result<Vec<_>, _>>()
     }
 
+    /// Calls `StoreKit.Product.purchase(options:)`.
     pub fn purchase(&self, options: &[PurchaseOption]) -> Result<PurchaseResult, StoreKitError> {
         let product_id = cstring_from_str(&self.id, "product id")?;
         let options_json = json_cstring(options, "purchase options")?;
@@ -128,12 +149,14 @@ impl Product {
         }
     }
 
+    /// Fetches the latest `StoreKit` transaction for this product.
     pub fn latest_transaction(
         &self,
     ) -> Result<Option<VerificationResult<Transaction>>, StoreKitError> {
         Transaction::latest_for(&self.id)
     }
 
+    /// Creates a stream of current `StoreKit` entitlements for this product.
     pub fn current_entitlements(&self) -> Result<TransactionStream, StoreKitError> {
         Transaction::current_entitlements_for(&self.id)
     }

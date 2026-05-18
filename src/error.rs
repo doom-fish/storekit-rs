@@ -9,16 +9,24 @@ use crate::ffi;
 use crate::private::take_string;
 
 #[derive(Debug, Clone)]
+/// Top-level error returned by this crate for `StoreKit` failures.
 pub enum StoreKitError {
+    /// Represents the `InvalidArgument` `StoreKit` case.
     InvalidArgument(String),
+    /// Represents the `TimedOut` `StoreKit` case.
     TimedOut(String),
+    /// Represents the `NotSupported` `StoreKit` case.
     NotSupported(String),
+    /// Represents the `Framework` `StoreKit` case.
     Framework(StoreKitFrameworkError),
+    /// Represents the `Verification` `StoreKit` case.
     Verification(VerificationFailure),
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl StoreKitError {
+    /// Returns the typed `StoreKit` framework error when one can be decoded.
     pub fn typed(&self) -> Option<TypedStoreKitError> {
         match self {
             Self::Framework(error) => lookup_typed_framework_error(error),
@@ -26,6 +34,7 @@ impl StoreKitError {
         }
     }
 
+    /// Returns the decoded `StoreKit.StoreKitError`, if available.
     pub fn storekit_api_error(&self) -> Option<StoreKitApiError> {
         match self.typed() {
             Some(TypedStoreKitError::StoreKit(error)) => Some(error),
@@ -33,6 +42,7 @@ impl StoreKitError {
         }
     }
 
+    /// Returns the decoded `StoreKit.Product.PurchaseError`, if available.
     pub fn product_purchase_error(&self) -> Option<ProductPurchaseError> {
         match self.typed() {
             Some(TypedStoreKitError::Purchase(error)) => Some(error),
@@ -40,6 +50,7 @@ impl StoreKitError {
         }
     }
 
+    /// Returns the decoded `StoreKit.Transaction.RefundRequestError`, if available.
     pub fn refund_request_error(&self) -> Option<RefundRequestError> {
         match self.typed() {
             Some(TypedStoreKitError::RefundRequest(error)) => Some(error),
@@ -47,6 +58,7 @@ impl StoreKitError {
         }
     }
 
+    /// Returns the decoded `StoreKit.InvalidRequestError`, if available.
     pub fn invalid_request_error(&self) -> Option<InvalidRequestError> {
         match self.typed() {
             Some(TypedStoreKitError::InvalidRequest(error)) => Some(error),
@@ -80,44 +92,71 @@ impl fmt::Display for StoreKitError {
 impl std::error::Error for StoreKitError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps the underlying `NSError` surfaced by the `StoreKit` framework.
 pub struct StoreKitFrameworkError {
+    /// `StoreKit`-provided `domain` value.
     pub domain: String,
+    /// `StoreKit`-provided `code` value.
     pub code: i64,
+    /// Localized description reported by `StoreKit`.
     pub localized_description: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Classifies typed error payloads returned by the `StoreKit` framework.
 pub enum TypedStoreKitError {
+    /// Represents the `StoreKit` `StoreKit` case.
     StoreKit(StoreKitApiError),
+    /// Represents the `Purchase` `StoreKit` case.
     Purchase(ProductPurchaseError),
+    /// Represents the `RefundRequest` `StoreKit` case.
     RefundRequest(RefundRequestError),
+    /// Represents the `InvalidRequest` `StoreKit` case.
     InvalidRequest(InvalidRequestError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps a `StoreKit.StoreKitError` payload.
 pub struct StoreKitApiError {
+    /// `StoreKit`-provided `code` value.
     pub code: StoreKitApiErrorCode,
+    /// `StoreKit`-provided `error_description` value.
     pub error_description: Option<String>,
+    /// `StoreKit`-provided `failure_reason` value.
     pub failure_reason: Option<String>,
+    /// `StoreKit`-provided `recovery_suggestion` value.
     pub recovery_suggestion: Option<String>,
+    /// `StoreKit`-provided `underlying_domain` value.
     pub underlying_domain: Option<String>,
+    /// `StoreKit`-provided `underlying_code` value.
     pub underlying_code: Option<i64>,
+    /// `StoreKit`-provided `underlying_description` value.
     pub underlying_description: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps the code space of `StoreKit.StoreKitError`.
 pub enum StoreKitApiErrorCode {
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown,
+    /// The person cancelled the `StoreKit` flow.
     UserCancelled,
+    /// Represents the `NetworkError` `StoreKit` case.
     NetworkError,
+    /// Represents the `SystemError` `StoreKit` case.
     SystemError,
+    /// Represents the `NotAvailableInStorefront` `StoreKit` case.
     NotAvailableInStorefront,
+    /// Represents the `NotEntitled` `StoreKit` case.
     NotEntitled,
+    /// Represents the `Unsupported` `StoreKit` case.
     Unsupported,
+    /// Represents the `other` `StoreKit` case.
     Other(String),
 }
 
 impl StoreKitApiErrorCode {
+    /// Returns the raw `StoreKit` string for this error code.
     pub fn as_str(&self) -> &str {
         match self {
             Self::Unknown => "unknown",
@@ -159,27 +198,43 @@ impl StoreKitApiErrorCode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps a `StoreKit.Product.PurchaseError` payload.
 pub struct ProductPurchaseError {
+    /// `StoreKit`-provided `code` value.
     pub code: ProductPurchaseErrorCode,
+    /// `StoreKit`-provided `error_description` value.
     pub error_description: Option<String>,
+    /// `StoreKit`-provided `failure_reason` value.
     pub failure_reason: Option<String>,
+    /// `StoreKit`-provided `recovery_suggestion` value.
     pub recovery_suggestion: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps the code space of `StoreKit.Product.PurchaseError`.
 pub enum ProductPurchaseErrorCode {
+    /// Represents the `InvalidQuantity` `StoreKit` case.
     InvalidQuantity,
+    /// Represents the `ProductUnavailable` `StoreKit` case.
     ProductUnavailable,
+    /// Represents the `PurchaseNotAllowed` `StoreKit` case.
     PurchaseNotAllowed,
+    /// Represents the `IneligibleForOffer` `StoreKit` case.
     IneligibleForOffer,
+    /// Represents the `InvalidOfferIdentifier` `StoreKit` case.
     InvalidOfferIdentifier,
+    /// Represents the `InvalidOfferPrice` `StoreKit` case.
     InvalidOfferPrice,
+    /// Represents the `InvalidOfferSignature` `StoreKit` case.
     InvalidOfferSignature,
+    /// Represents the `MissingOfferParameters` `StoreKit` case.
     MissingOfferParameters,
+    /// Represents the `other` `StoreKit` case.
     Other(String),
 }
 
 impl ProductPurchaseErrorCode {
+    /// Returns the raw `StoreKit` string for this purchase error code.
     pub fn as_str(&self) -> &str {
         match self {
             Self::InvalidQuantity => "invalidQuantity",
@@ -224,21 +279,31 @@ impl ProductPurchaseErrorCode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps a `StoreKit.Transaction.RefundRequestError` payload.
 pub struct RefundRequestError {
+    /// `StoreKit`-provided `code` value.
     pub code: RefundRequestErrorCode,
+    /// `StoreKit`-provided `error_description` value.
     pub error_description: Option<String>,
+    /// `StoreKit`-provided `failure_reason` value.
     pub failure_reason: Option<String>,
+    /// `StoreKit`-provided `recovery_suggestion` value.
     pub recovery_suggestion: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps the code space of `StoreKit.Transaction.RefundRequestError`.
 pub enum RefundRequestErrorCode {
+    /// Represents the `DuplicateRequest` `StoreKit` case.
     DuplicateRequest,
+    /// Represents the `Failed` `StoreKit` case.
     Failed,
+    /// Represents the `other` `StoreKit` case.
     Other(String),
 }
 
 impl RefundRequestErrorCode {
+    /// Returns the raw `StoreKit` string for this refund request error code.
     pub fn as_str(&self) -> &str {
         match self {
             Self::DuplicateRequest => "duplicateRequest",
@@ -265,29 +330,44 @@ impl RefundRequestErrorCode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps a `StoreKit.InvalidRequestError` payload.
 pub struct InvalidRequestError {
+    /// `StoreKit`-provided `code` value.
     pub code: i64,
+    /// `StoreKit`-provided `message` value.
     pub message: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps the verification failure reported by `StoreKit`.
 pub struct VerificationFailure {
+    /// `StoreKit`-provided `code` value.
     pub code: VerificationErrorCode,
+    /// Localized description reported by `StoreKit`.
     pub localized_description: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps the verification error codes used by `StoreKit`.
 pub enum VerificationErrorCode {
+    /// Represents the `RevokedCertificate` `StoreKit` case.
     RevokedCertificate,
+    /// Represents the `InvalidCertificateChain` `StoreKit` case.
     InvalidCertificateChain,
+    /// Represents the `InvalidDeviceVerification` `StoreKit` case.
     InvalidDeviceVerification,
+    /// Represents the `InvalidEncoding` `StoreKit` case.
     InvalidEncoding,
+    /// Represents the `InvalidSignature` `StoreKit` case.
     InvalidSignature,
+    /// Represents the `MissingRequiredProperties` `StoreKit` case.
     MissingRequiredProperties,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl VerificationErrorCode {
+    /// Returns the raw `StoreKit` string for this verification error code.
     pub fn as_str(&self) -> &str {
         match self {
             Self::RevokedCertificate => "revokedCertificate",
@@ -378,10 +458,7 @@ enum FrameworkErrorPayload {
         recovery_suggestion: Option<String>,
     },
     #[serde(rename = "invalidRequestError")]
-    InvalidRequest {
-        code: i64,
-        message: String,
-    },
+    InvalidRequest { code: i64, message: String },
 }
 
 impl FrameworkErrorPayload {
@@ -407,9 +484,11 @@ impl FrameworkErrorPayload {
             } => typed_framework_error(
                 "StoreKit.StoreKitError",
                 StoreKitApiErrorCode::from_raw(code.clone()).numeric_code(),
-                error_description
-                    .clone()
-                    .unwrap_or_else(|| StoreKitApiErrorCode::from_raw(code.clone()).as_str().to_owned()),
+                error_description.clone().unwrap_or_else(|| {
+                    StoreKitApiErrorCode::from_raw(code.clone())
+                        .as_str()
+                        .to_owned()
+                }),
                 TypedStoreKitError::StoreKit(StoreKitApiError {
                     code: StoreKitApiErrorCode::from_raw(code),
                     error_description,
@@ -599,7 +678,9 @@ mod tests {
             r#"{"kind":"storekitError","code":"unsupported","errorDescription":"unsupported","failureReason":"not available here","recoverySuggestion":"try a supported storefront"}"#
                 .to_owned(),
         ));
-        let typed = error.storekit_api_error().expect("typed StoreKit API error");
+        let typed = error
+            .storekit_api_error()
+            .expect("typed StoreKit API error");
         assert_eq!(typed.code, StoreKitApiErrorCode::Unsupported);
         assert_eq!(typed.failure_reason.as_deref(), Some("not available here"));
     }
@@ -607,8 +688,7 @@ mod tests {
     #[test]
     fn parses_invalid_request_errors_into_typed_details() {
         let error = parse_framework_error(Some(
-            r#"{"kind":"invalidRequestError","code":47,"message":"bad request"}"#
-                .to_owned(),
+            r#"{"kind":"invalidRequestError","code":47,"message":"bad request"}"#.to_owned(),
         ));
         let typed = error
             .invalid_request_error()

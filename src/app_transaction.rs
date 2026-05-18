@@ -9,21 +9,34 @@ use crate::private::{decode_base64, error_from_status, parse_json_ptr};
 use crate::verification_result::{VerificationResult, VerificationResultPayload};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.AppTransaction`.
 pub struct AppTransaction {
+    /// App identifier reported by `StoreKit`.
     pub app_id: Option<u64>,
+    /// App transaction identifier reported by `StoreKit`.
     pub app_transaction_id: String,
+    /// App version reported by `StoreKit`.
     pub app_version: String,
+    /// App version identifier reported by `StoreKit`.
     pub app_version_id: Option<u64>,
+    /// Bundle identifier reported by `StoreKit`.
     pub bundle_id: String,
+    /// Environment reported by `StoreKit`.
     pub environment: AppStoreEnvironment,
+    /// Original app version reported by `StoreKit`.
     pub original_app_version: String,
+    /// Original purchase date reported by `StoreKit`.
     pub original_purchase_date: String,
+    /// Original platform reported by `StoreKit`.
     pub original_platform: Option<AppStorePlatform>,
+    /// Preorder date reported by `StoreKit`.
     pub preorder_date: Option<String>,
+    /// Decoded JSON representation returned by `StoreKit`.
     pub json_representation: Vec<u8>,
 }
 
 impl AppTransaction {
+    /// Fetches `StoreKit.AppTransaction.shared`.
     pub fn shared() -> Result<VerificationResult<Self>, StoreKitError> {
         let mut result_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
@@ -41,6 +54,7 @@ impl AppTransaction {
         payload.into_result(AppTransactionPayload::into_app_transaction)
     }
 
+    /// Fetches `StoreKit.AppTransaction.refresh()`.
     pub fn refresh() -> Result<VerificationResult<Self>, StoreKitError> {
         let mut result_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();

@@ -4,59 +4,82 @@ use crate::error::{StoreKitError, VerificationErrorPayload, VerificationFailure}
 use crate::private::decode_base64;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Carries metadata returned alongside `StoreKit.VerificationResult`.
 pub struct VerificationMetadata {
+    /// `StoreKit`-provided `jws_representation` value.
     pub jws_representation: String,
+    /// Decoded JWS header bytes returned by `StoreKit`.
     pub header_data: Vec<u8>,
+    /// Decoded JWS payload bytes returned by `StoreKit`.
     pub payload_data: Vec<u8>,
+    /// Decoded JWS signature bytes returned by `StoreKit`.
     pub signature_data: Vec<u8>,
+    /// Decoded signed-data bytes returned by `StoreKit`.
     pub signed_data: Vec<u8>,
+    /// Signature timestamp reported by `StoreKit`.
     pub signed_date: String,
+    /// Decoded device-verification bytes returned by `StoreKit`.
     pub device_verification: Vec<u8>,
+    /// Device verification nonce reported by `StoreKit`.
     pub device_verification_nonce: String,
 }
 
 impl VerificationMetadata {
+    /// Returns the compact JWS representation returned by `StoreKit`.
     pub fn jws_representation(&self) -> &str {
         &self.jws_representation
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.VerificationResult`.
 pub enum VerificationResult<T> {
+    /// `StoreKit` verified the payload signature.
     Verified {
+        /// Decoded payload returned by `StoreKit`.
         payload: T,
+        /// Verification metadata returned by `StoreKit`.
         metadata: VerificationMetadata,
     },
+    /// `StoreKit` returned the payload but verification failed.
     Unverified {
+        /// Decoded payload returned by `StoreKit`.
         payload: T,
+        /// Verification metadata returned by `StoreKit`.
         metadata: VerificationMetadata,
+        /// Verification failure returned by `StoreKit`.
         failure: VerificationFailure,
     },
 }
 
 impl<T> VerificationResult<T> {
+    /// Returns `true` when `StoreKit` verified the payload.
     pub const fn is_verified(&self) -> bool {
         matches!(self, Self::Verified { .. })
     }
 
+    /// Returns the decoded payload returned by `StoreKit`.
     pub const fn payload(&self) -> &T {
         match self {
             Self::Verified { payload, .. } | Self::Unverified { payload, .. } => payload,
         }
     }
 
+    /// Consumes the wrapper and returns the decoded `StoreKit` payload.
     pub fn into_payload(self) -> T {
         match self {
             Self::Verified { payload, .. } | Self::Unverified { payload, .. } => payload,
         }
     }
 
+    /// Returns the verification metadata returned by `StoreKit`.
     pub const fn metadata(&self) -> &VerificationMetadata {
         match self {
             Self::Verified { metadata, .. } | Self::Unverified { metadata, .. } => metadata,
         }
     }
 
+    /// Returns the verification failure reported by `StoreKit`, if any.
     pub const fn verification_failure(&self) -> Option<&VerificationFailure> {
         match self {
             Self::Verified { .. } => None,
@@ -64,6 +87,7 @@ impl<T> VerificationResult<T> {
         }
     }
 
+    /// Consumes the wrapper and returns the payload, metadata, and optional verification failure.
     pub fn into_parts(self) -> (T, VerificationMetadata, Option<VerificationFailure>) {
         match self {
             Self::Verified { payload, metadata } => (payload, metadata, None),
@@ -75,6 +99,7 @@ impl<T> VerificationResult<T> {
         }
     }
 
+    /// Returns the compact JWS representation returned by `StoreKit`.
     pub fn jws_representation(&self) -> &str {
         self.metadata().jws_representation()
     }

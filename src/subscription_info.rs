@@ -16,21 +16,31 @@ use crate::transaction::{Transaction, TransactionPayload};
 use crate::verification_result::{VerificationResult, VerificationResultPayload};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Product.SubscriptionInfo`.
 pub struct SubscriptionInfo {
+    /// Introductory offer reported by `StoreKit`.
     pub introductory_offer: Option<SubscriptionOffer>,
+    /// Promotional offers reported by `StoreKit`.
     pub promotional_offers: Vec<SubscriptionOffer>,
+    /// Win-back offers reported by `StoreKit`.
     pub win_back_offers: Vec<SubscriptionOffer>,
+    /// Subscription group identifier reported by `StoreKit`.
     pub subscription_group_id: String,
+    /// Subscription period reported by `StoreKit`.
     pub subscription_period: SubscriptionPeriod,
+    /// Subscription group level reported by `StoreKit`.
     pub group_level: Option<i64>,
+    /// Subscription group display name reported by `StoreKit`.
     pub group_display_name: Option<String>,
 }
 
 impl SubscriptionInfo {
+    /// Returns whether `StoreKit` reports that this subscription group is eligible for an introductory offer.
     pub fn is_eligible_for_intro_offer(&self) -> Result<bool, StoreKitError> {
         Self::is_eligible_for_intro_offer_for(&self.subscription_group_id)
     }
 
+    /// Returns whether `StoreKit` reports that the supplied subscription group is eligible for an introductory offer.
     pub fn is_eligible_for_intro_offer_for(group_id: &str) -> Result<bool, StoreKitError> {
         let group_id = cstring_from_str(group_id, "subscription group id")?;
         let mut raw_value = 0;
@@ -49,10 +59,12 @@ impl SubscriptionInfo {
         }
     }
 
+    /// Fetches the `StoreKit` subscription statuses for this subscription group.
     pub fn status(&self) -> Result<Vec<SubscriptionStatus>, StoreKitError> {
         Self::status_for(&self.subscription_group_id)
     }
 
+    /// Fetches the `StoreKit` subscription statuses for the supplied subscription group identifier.
     pub fn status_for(group_id: &str) -> Result<Vec<SubscriptionStatus>, StoreKitError> {
         let group_id = cstring_from_str(group_id, "subscription group id")?;
         let mut statuses_json = ptr::null_mut();
@@ -76,6 +88,7 @@ impl SubscriptionInfo {
             .collect::<Result<Vec<_>, _>>()
     }
 
+    /// Fetches the `StoreKit` subscription status for the supplied transaction identifier.
     pub fn status_for_transaction(
         transaction_id: u64,
     ) -> Result<Option<SubscriptionStatus>, StoreKitError> {
@@ -107,9 +120,13 @@ impl SubscriptionInfo {
 }
 
 #[derive(Debug, Clone)]
+/// Wraps `StoreKit.Product.SubscriptionInfo.Status`.
 pub struct SubscriptionStatus {
+    /// State reported by `StoreKit`.
     pub state: RenewalState,
+    /// Transaction payload returned by `StoreKit`.
     pub transaction: VerificationResult<Transaction>,
+    /// Renewal info payload returned by `StoreKit`.
     pub renewal_info: VerificationResult<RenewalInfo>,
 }
 

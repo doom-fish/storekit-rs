@@ -24,13 +24,18 @@ pub use crate::verification_result::VerificationResult;
 use crate::verification_result::VerificationResultPayload;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Transaction.Reason`.
 pub enum TransactionReason {
+    /// Represents the `Purchase` `StoreKit` case.
     Purchase,
+    /// Represents the `Renewal` `StoreKit` case.
     Renewal,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl TransactionReason {
+    /// Returns the raw `StoreKit` string for this transaction reason.
     pub fn as_str(&self) -> &str {
         match self {
             Self::Purchase => "purchase",
@@ -49,13 +54,18 @@ impl TransactionReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Transaction.RevocationReason`.
 pub enum RevocationReason {
+    /// Represents the `DeveloperIssue` `StoreKit` case.
     DeveloperIssue,
+    /// Represents the `other` `StoreKit` case.
     Other,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl RevocationReason {
+    /// Returns the raw `StoreKit` string for this revocation reason.
     pub fn as_str(&self) -> &str {
         match self {
             Self::DeveloperIssue => "developerIssue",
@@ -74,15 +84,22 @@ impl RevocationReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps the offer type attached to `StoreKit.Transaction`.
 pub enum OfferType {
+    /// Represents the `Introductory` `StoreKit` case.
     Introductory,
+    /// Represents the `Promotional` `StoreKit` case.
     Promotional,
+    /// Represents the `Code` `StoreKit` case.
     Code,
+    /// Represents the `WinBack` `StoreKit` case.
     WinBack,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl OfferType {
+    /// Returns the raw `StoreKit` string for this offer type.
     pub fn as_str(&self) -> &str {
         match self {
             Self::Introductory => "introductory",
@@ -105,15 +122,22 @@ impl OfferType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps the offer payment mode attached to `StoreKit.Transaction`.
 pub enum OfferPaymentMode {
+    /// Represents the `FreeTrial` `StoreKit` case.
     FreeTrial,
+    /// Represents the `PayAsYouGo` `StoreKit` case.
     PayAsYouGo,
+    /// Represents the `PayUpFront` `StoreKit` case.
     PayUpFront,
+    /// Represents the `OneTime` `StoreKit` case.
     OneTime,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl OfferPaymentMode {
+    /// Returns the raw `StoreKit` string for this offer payment mode.
     pub fn as_str(&self) -> &str {
         match self {
             Self::FreeTrial => "freeTrial",
@@ -136,17 +160,26 @@ impl OfferPaymentMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Carries offer metadata attached to `StoreKit.Transaction`.
 pub struct TransactionOffer {
+    /// `StoreKit` identifier for this value.
     pub id: Option<String>,
+    /// Offer type reported by `StoreKit`.
     pub offer_type: OfferType,
+    /// Payment mode reported by `StoreKit`.
     pub payment_mode: Option<OfferPaymentMode>,
+    /// Subscription period reported by `StoreKit`.
     pub period: Option<SubscriptionPeriod>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Transaction.OwnershipType`.
 pub enum OwnershipType {
+    /// Represents the `Purchased` `StoreKit` case.
     Purchased,
+    /// Represents the `FamilyShared` `StoreKit` case.
     FamilyShared,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
@@ -161,37 +194,66 @@ impl OwnershipType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Carries decoded fields from a `StoreKit.Transaction` payload.
 pub struct TransactionData {
+    /// `StoreKit` identifier for this value.
     pub id: u64,
+    /// Original `StoreKit` transaction identifier.
     pub original_id: u64,
+    /// Web order line item identifier reported by `StoreKit`.
     pub web_order_line_item_id: Option<String>,
+    /// Product identifier reported by `StoreKit`.
     pub product_id: String,
+    /// Subscription group identifier reported by `StoreKit`.
     pub subscription_group_id: Option<String>,
+    /// Bundle identifier reported by `StoreKit`.
     pub app_bundle_id: String,
+    /// Purchase date reported by `StoreKit`.
     pub purchase_date: String,
+    /// Original purchase date reported by `StoreKit`.
     pub original_purchase_date: String,
+    /// Expiration date reported by `StoreKit`.
     pub expiration_date: Option<String>,
+    /// Purchased quantity reported by `StoreKit`.
     pub purchased_quantity: u64,
+    /// Whether `StoreKit` reported `upgraded`.
     pub is_upgraded: bool,
+    /// Ownership type reported by `StoreKit`.
     pub ownership_type: OwnershipType,
+    /// Signature timestamp reported by `StoreKit`.
     pub signed_date: String,
+    /// `StoreKit`-provided `jws_representation` value.
     pub jws_representation: String,
+    /// Verification failure reported by `StoreKit`.
     pub verification_failure: Option<VerificationFailure>,
+    /// Revocation date reported by `StoreKit`.
     pub revocation_date: Option<String>,
+    /// Revocation reason reported by `StoreKit`.
     pub revocation_reason: Option<RevocationReason>,
+    /// Product type reported by `StoreKit`.
     pub product_type: Option<ProductType>,
+    /// App account token reported by `StoreKit`.
     pub app_account_token: Option<String>,
+    /// Environment reported by `StoreKit`.
     pub environment: Option<AppStoreEnvironment>,
+    /// Reason reported by `StoreKit`.
     pub reason: Option<TransactionReason>,
+    /// Storefront metadata reported by `StoreKit`.
     pub storefront: Option<Storefront>,
+    /// Price reported by `StoreKit`.
     pub price: Option<String>,
+    /// Currency code reported by `StoreKit`.
     pub currency_code: Option<String>,
+    /// App transaction identifier reported by `StoreKit`.
     pub app_transaction_id: Option<String>,
+    /// Offer metadata reported by `StoreKit`.
     pub offer: Option<TransactionOffer>,
+    /// Decoded JSON representation returned by `StoreKit`.
     pub json_representation: Vec<u8>,
 }
 
 #[derive(Debug)]
+/// Wraps a live `StoreKit.Transaction` handle plus decoded payload data.
 pub struct Transaction {
     handle: Option<NonNull<c_void>>,
     data: TransactionData,
@@ -227,32 +289,39 @@ impl Drop for Transaction {
 }
 
 impl Transaction {
+    /// Creates a stream backed by `StoreKit.Transaction.currentEntitlements`.
     pub fn current_entitlements() -> Result<TransactionStream, StoreKitError> {
         TransactionStream::new(&TransactionStreamConfig::current_entitlements())
     }
 
+    /// Creates a stream backed by `StoreKit.Transaction.all`.
     pub fn all() -> Result<TransactionStream, StoreKitError> {
         TransactionStream::new(&TransactionStreamConfig::all())
     }
 
+    /// Creates a stream backed by `StoreKit.Transaction.updates`.
     pub fn updates() -> Result<TransactionStream, StoreKitError> {
         TransactionStream::new(&TransactionStreamConfig::updates())
     }
 
+    /// Creates a stream backed by `StoreKit.Transaction.unfinished`.
     pub fn unfinished() -> Result<TransactionStream, StoreKitError> {
         TransactionStream::new(&TransactionStreamConfig::unfinished())
     }
 
+    /// Creates a stream of all `StoreKit` transactions for the supplied product identifier.
     pub fn all_for(product_id: &str) -> Result<TransactionStream, StoreKitError> {
         TransactionStream::new(&TransactionStreamConfig::all_for(product_id))
     }
 
+    /// Creates a stream of current `StoreKit` entitlements for the supplied product identifier.
     pub fn current_entitlements_for(product_id: &str) -> Result<TransactionStream, StoreKitError> {
         TransactionStream::new(&TransactionStreamConfig::current_entitlements_for(
             product_id,
         ))
     }
 
+    /// Fetches the latest `StoreKit` transaction for the supplied product identifier.
     pub fn latest_for(product_id: &str) -> Result<Option<VerificationResult<Self>>, StoreKitError> {
         let product_id = cstring_from_str(product_id, "product id")?;
         let mut transaction_handle = ptr::null_mut();
@@ -283,6 +352,7 @@ impl Transaction {
             .transpose()
     }
 
+    /// Fetches the current `StoreKit` entitlement transaction for the supplied product identifier.
     pub fn current_entitlement_for(
         product_id: &str,
     ) -> Result<Option<VerificationResult<Self>>, StoreKitError> {
@@ -315,18 +385,22 @@ impl Transaction {
             .transpose()
     }
 
+    /// Returns the decoded `StoreKit.Transaction` payload data.
     pub const fn data(&self) -> &TransactionData {
         &self.data
     }
 
+    /// Returns advanced-commerce metadata attached to this `StoreKit` transaction.
     pub const fn advanced_commerce_info(&self) -> Option<&TransactionAdvancedCommerceInfo> {
         self.advanced_commerce_info.as_ref()
     }
 
+    /// Returns whether this wrapper still owns a live `StoreKit` handle.
     pub const fn has_live_handle(&self) -> bool {
         self.handle.is_some()
     }
 
+    /// Asks `StoreKit` to verify this transaction again.
     pub fn verify(&self) -> Result<(), StoreKitError> {
         self.handle.map_or_else(
             || {
@@ -348,6 +422,7 @@ impl Transaction {
         )
     }
 
+    /// Calls `StoreKit.Transaction.finish()`.
     pub fn finish(&self) -> Result<(), StoreKitError> {
         self.handle.map_or_else(
             || {
@@ -368,6 +443,7 @@ impl Transaction {
         )
     }
 
+    /// Begins a `StoreKit` refund request for this transaction.
     pub fn begin_refund_request(&self) -> Result<RefundRequestStatus, StoreKitError> {
         Refund::begin_for_transaction_id(self.data.id)
     }
@@ -397,6 +473,7 @@ impl Transaction {
 }
 
 #[derive(Debug)]
+/// Wraps the `StoreKit` transaction stream APIs.
 pub struct TransactionStream {
     handle: NonNull<c_void>,
     finished: bool,
@@ -422,15 +499,18 @@ impl TransactionStream {
         })
     }
 
+    /// Returns whether this `StoreKit` stream has reached the end of the sequence.
     pub const fn is_finished(&self) -> bool {
         self.finished
     }
 
     #[allow(clippy::should_implement_trait)]
+    /// Waits for the next value from the `StoreKit` stream using the default timeout.
     pub fn next(&mut self) -> Result<Option<VerificationResult<Transaction>>, StoreKitError> {
         self.next_timeout(Duration::from_secs(30))
     }
 
+    /// Waits for the next value from the `StoreKit` stream up to the supplied timeout.
     pub fn next_timeout(
         &mut self,
         timeout: Duration,
@@ -615,41 +695,44 @@ impl TransactionPayload {
         let advanced_commerce_info = self
             .advanced_commerce_info
             .map(TransactionAdvancedCommerceInfoPayload::into_transaction_advanced_commerce_info);
-        Ok((TransactionData {
-            id: self.id,
-            original_id: self.original_id,
-            web_order_line_item_id: self.web_order_line_item_id,
-            product_id: self.product_id,
-            subscription_group_id: self.subscription_group_id,
-            app_bundle_id: self.app_bundle_id,
-            purchase_date: self.purchase_date,
-            original_purchase_date: self.original_purchase_date,
-            expiration_date: self.expiration_date,
-            purchased_quantity: self.purchased_quantity,
-            is_upgraded: self.is_upgraded,
-            ownership_type: OwnershipType::from_raw(self.ownership_type),
-            signed_date: self.signed_date,
-            jws_representation: self.jws_representation,
-            verification_failure: self
-                .verification_error
-                .map(crate::error::VerificationFailure::from_payload),
-            revocation_date: self.revocation_date,
-            revocation_reason: self.revocation_reason.map(RevocationReason::from_raw),
-            product_type: self.product_type.map(ProductType::from_raw),
-            app_account_token: self.app_account_token,
-            environment: self.environment.map(AppStoreEnvironment::from_raw),
-            reason: self.reason.map(TransactionReason::from_raw),
-            storefront: self.storefront.map(StorefrontPayload::into_storefront),
-            price: self.price,
-            currency_code: self.currency_code,
-            app_transaction_id: self.app_transaction_id,
-            offer: self
-                .offer
-                .map(TransactionOfferPayload::into_transaction_offer),
-            json_representation: decode_base64(
-                &self.json_representation_base64,
-                "transaction JSON representation",
-            )?,
-        }, advanced_commerce_info))
+        Ok((
+            TransactionData {
+                id: self.id,
+                original_id: self.original_id,
+                web_order_line_item_id: self.web_order_line_item_id,
+                product_id: self.product_id,
+                subscription_group_id: self.subscription_group_id,
+                app_bundle_id: self.app_bundle_id,
+                purchase_date: self.purchase_date,
+                original_purchase_date: self.original_purchase_date,
+                expiration_date: self.expiration_date,
+                purchased_quantity: self.purchased_quantity,
+                is_upgraded: self.is_upgraded,
+                ownership_type: OwnershipType::from_raw(self.ownership_type),
+                signed_date: self.signed_date,
+                jws_representation: self.jws_representation,
+                verification_failure: self
+                    .verification_error
+                    .map(crate::error::VerificationFailure::from_payload),
+                revocation_date: self.revocation_date,
+                revocation_reason: self.revocation_reason.map(RevocationReason::from_raw),
+                product_type: self.product_type.map(ProductType::from_raw),
+                app_account_token: self.app_account_token,
+                environment: self.environment.map(AppStoreEnvironment::from_raw),
+                reason: self.reason.map(TransactionReason::from_raw),
+                storefront: self.storefront.map(StorefrontPayload::into_storefront),
+                price: self.price,
+                currency_code: self.currency_code,
+                app_transaction_id: self.app_transaction_id,
+                offer: self
+                    .offer
+                    .map(TransactionOfferPayload::into_transaction_offer),
+                json_representation: decode_base64(
+                    &self.json_representation_base64,
+                    "transaction JSON representation",
+                )?,
+            },
+            advanced_commerce_info,
+        ))
     }
 }

@@ -17,14 +17,18 @@ use crate::window::NSWindowHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
+/// Represents the merchandising kind requested from `StoreKit.AppStore`.
 pub enum AppStoreMerchandisingKind {
+    /// Represents the `SubscriptionBundle` `StoreKit` case.
     SubscriptionBundle {
         #[serde(rename = "groupID")]
+        /// Subscription group identifier reported by `StoreKit`.
         group_id: String,
     },
 }
 
 impl AppStoreMerchandisingKind {
+    /// Builds the `StoreKit` merchandising request for a subscription bundle.
     pub fn subscription_bundle(group_id: impl Into<String>) -> Self {
         Self::SubscriptionBundle {
             group_id: group_id.into(),
@@ -34,22 +38,22 @@ impl AppStoreMerchandisingKind {
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
+/// Represents the result returned by `StoreKit` merchandising presentation APIs.
 pub enum AppStoreMerchandisingPresentationResult {
+    /// Represents the `Dismissed` `StoreKit` case.
     Dismissed,
+    /// The merchandising flow completed with a purchase result.
     PurchaseCompleted(PurchaseResult),
 }
 
 impl AppStore {
+    /// Fetches the age rating code reported by `StoreKit`.
     pub fn age_rating_code() -> Result<Option<i64>, StoreKitError> {
         let mut raw_value = 0_i64;
         let mut has_value = 0;
         let mut error_message = ptr::null_mut();
         let status = unsafe {
-            ffi::sk_app_store_age_rating_code(
-                &mut raw_value,
-                &mut has_value,
-                &mut error_message,
-            )
+            ffi::sk_app_store_age_rating_code(&mut raw_value, &mut has_value, &mut error_message)
         };
         if status == ffi::status::OK {
             Ok((has_value != 0).then_some(raw_value))
@@ -58,6 +62,7 @@ impl AppStore {
         }
     }
 
+    /// Presents `StoreKit` merchandising UI in the supplied window.
     pub fn present_merchandising(
         kind: &AppStoreMerchandisingKind,
         window: &NSWindowHandle,
@@ -90,20 +95,27 @@ impl AppStore {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
+/// Represents advanced-commerce options forwarded to `StoreKit` purchase APIs.
 pub enum AdvancedCommercePurchaseOption {
+    /// Represents the `OnStorefrontChange` `StoreKit` case.
     OnStorefrontChange {
         #[serde(rename = "shouldContinuePurchase")]
+        /// Value forwarded to `StoreKit` for `should_continue_purchase`.
         should_continue_purchase: bool,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps a `StoreKit` advanced-commerce product.
 pub struct AdvancedCommerceProduct {
+    /// `StoreKit` identifier for this value.
     pub id: String,
+    /// Product type reported by `StoreKit`.
     pub product_type: ProductType,
 }
 
 impl AdvancedCommerceProduct {
+    /// Fetches the `StoreKit` advanced-commerce product for the supplied identifier.
     pub fn new(id: &str) -> Result<Self, StoreKitError> {
         let product_id = cstring_from_str(id, "advanced commerce product id")?;
         let mut product_json = ptr::null_mut();
@@ -127,6 +139,7 @@ impl AdvancedCommerceProduct {
         Ok(payload.into_product())
     }
 
+    /// Calls the `StoreKit` advanced-commerce purchase API while presenting UI in the supplied `NSWindow`.
     pub fn purchase_in_window(
         &self,
         compact_jws: &str,
@@ -155,7 +168,10 @@ impl AdvancedCommerceProduct {
         }
 
         let payload = unsafe {
-            parse_json_ptr::<PurchaseResultPayload>(result_json, "advanced commerce purchase result")
+            parse_json_ptr::<PurchaseResultPayload>(
+                result_json,
+                "advanced commerce purchase result",
+            )
         };
         match payload {
             Ok(payload) => payload.into_purchase_result(transaction_handle),
@@ -168,65 +184,101 @@ impl AdvancedCommerceProduct {
         }
     }
 
-    pub fn latest_transaction(&self) -> Result<Option<VerificationResult<Transaction>>, StoreKitError> {
+    /// Fetches the latest `StoreKit` transaction for this advanced-commerce product.
+    pub fn latest_transaction(
+        &self,
+    ) -> Result<Option<VerificationResult<Transaction>>, StoreKitError> {
         Transaction::latest_for(&self.id)
     }
 
+    /// Creates a stream of all `StoreKit` transactions for this advanced-commerce product.
     pub fn all_transactions(&self) -> Result<TransactionStream, StoreKitError> {
         Transaction::all_for(&self.id)
     }
 
+    /// Creates a stream of current `StoreKit` entitlements for this advanced-commerce product.
     pub fn current_entitlements(&self) -> Result<TransactionStream, StoreKitError> {
         Transaction::current_entitlements_for(&self.id)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Carries advanced-commerce metadata attached to `StoreKit.Transaction`.
 pub struct TransactionAdvancedCommerceInfo {
+    /// Request reference identifier reported by `StoreKit`.
     pub request_reference_id: String,
+    /// Estimated tax reported by `StoreKit`.
     pub estimated_tax: String,
+    /// Tax rate reported by `StoreKit`.
     pub tax_rate: String,
+    /// Tax code reported by `StoreKit`.
     pub tax_code: String,
+    /// Tax-exclusive price reported by `StoreKit`.
     pub tax_exclusive_price: String,
+    /// Description reported by `StoreKit`.
     pub description: Option<String>,
+    /// Display name reported by `StoreKit`.
     pub display_name: Option<String>,
+    /// Subscription period reported by `StoreKit`.
     pub period: Option<SubscriptionPeriod>,
+    /// Nested items reported by `StoreKit`.
     pub items: Vec<TransactionAdvancedCommerceItem>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Carries an advanced-commerce item attached to `StoreKit.Transaction`.
 pub struct TransactionAdvancedCommerceItem {
+    /// Detailed item payload reported by `StoreKit`.
     pub details: TransactionAdvancedCommerceItemDetails,
+    /// Refund details reported by `StoreKit`.
     pub refunds: Option<Vec<TransactionAdvancedCommerceRefund>>,
+    /// Revocation date reported by `StoreKit`.
     pub revocation_date: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Carries detail fields for an advanced-commerce item returned by `StoreKit`.
 pub struct TransactionAdvancedCommerceItemDetails {
+    /// SKU reported by `StoreKit`.
     pub sku: String,
+    /// Display name reported by `StoreKit`.
     pub display_name: String,
+    /// Description reported by `StoreKit`.
     pub description: String,
+    /// Offer metadata reported by `StoreKit`.
     pub offer: Option<TransactionAdvancedCommerceOffer>,
+    /// Price reported by `StoreKit`.
     pub price: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Carries advanced-commerce offer data attached to `StoreKit.Transaction`.
 pub struct TransactionAdvancedCommerceOffer {
+    /// Price reported by `StoreKit`.
     pub price: String,
+    /// Subscription period reported by `StoreKit`.
     pub period: SubscriptionPeriod,
+    /// Number of periods reported by `StoreKit`.
     pub period_count: i64,
+    /// Reason reported by `StoreKit`.
     pub reason: TransactionAdvancedCommerceOfferReason,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps advanced-commerce offer reasons returned by `StoreKit`.
 pub enum TransactionAdvancedCommerceOfferReason {
+    /// Represents the `Acquisition` `StoreKit` case.
     Acquisition,
+    /// Represents the `Retention` `StoreKit` case.
     Retention,
+    /// Represents the `WinBack` `StoreKit` case.
     WinBack,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl TransactionAdvancedCommerceOfferReason {
+    /// Returns the raw `StoreKit` string for this advanced-commerce offer reason.
     pub fn as_str(&self) -> &str {
         match self {
             Self::Acquisition => "acquisition",
@@ -247,25 +299,39 @@ impl TransactionAdvancedCommerceOfferReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Carries advanced-commerce refund details returned by `StoreKit`.
 pub struct TransactionAdvancedCommerceRefund {
+    /// Reason reported by `StoreKit`.
     pub reason: TransactionAdvancedCommerceRefundReason,
+    /// Refund type reported by `StoreKit`.
     pub refund_type: TransactionAdvancedCommerceRefundType,
+    /// Date reported by `StoreKit`.
     pub date: String,
+    /// Amount reported by `StoreKit`.
     pub amount: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps advanced-commerce refund reasons returned by `StoreKit`.
 pub enum TransactionAdvancedCommerceRefundReason {
+    /// Represents the `Legal` `StoreKit` case.
     Legal,
+    /// Represents the `ModifyItems` `StoreKit` case.
     ModifyItems,
+    /// Represents the `Unintended` `StoreKit` case.
     Unintended,
+    /// Represents the `Unfulfilled` `StoreKit` case.
     Unfulfilled,
+    /// Represents the `Unsatisfied` `StoreKit` case.
     Unsatisfied,
+    /// Represents the `other` `StoreKit` case.
     Other,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl TransactionAdvancedCommerceRefundReason {
+    /// Returns the raw `StoreKit` string for this advanced-commerce refund reason.
     pub fn as_str(&self) -> &str {
         match self {
             Self::Legal => "legal",
@@ -292,14 +358,20 @@ impl TransactionAdvancedCommerceRefundReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps advanced-commerce refund types returned by `StoreKit`.
 pub enum TransactionAdvancedCommerceRefundType {
+    /// Represents the `Custom` `StoreKit` case.
     Custom,
+    /// Represents the `ProRated` `StoreKit` case.
     ProRated,
+    /// Represents the `Full` `StoreKit` case.
     Full,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl TransactionAdvancedCommerceRefundType {
+    /// Returns the raw `StoreKit` string for this advanced-commerce refund type.
     pub fn as_str(&self) -> &str {
         match self {
             Self::Custom => "custom",
@@ -320,38 +392,59 @@ impl TransactionAdvancedCommerceRefundType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Carries advanced-commerce metadata attached to `StoreKit.RenewalInfo`.
 pub struct RenewalInfoAdvancedCommerceInfo {
+    /// Consistency token reported by `StoreKit`.
     pub consistency_token: String,
+    /// Request reference identifier reported by `StoreKit`.
     pub request_reference_id: String,
+    /// Tax code reported by `StoreKit`.
     pub tax_code: String,
+    /// Description reported by `StoreKit`.
     pub description: String,
+    /// Display name reported by `StoreKit`.
     pub display_name: String,
+    /// Subscription period reported by `StoreKit`.
     pub period: SubscriptionPeriod,
+    /// Nested items reported by `StoreKit`.
     pub items: Vec<RenewalInfoAdvancedCommerceItem>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Carries an advanced-commerce renewal item returned by `StoreKit`.
 pub struct RenewalInfoAdvancedCommerceItem {
+    /// Detailed item payload reported by `StoreKit`.
     pub details: TransactionAdvancedCommerceItemDetails,
+    /// Price increase details reported by `StoreKit`.
     pub price_increase_info: Option<RenewalInfoAdvancedCommercePriceIncreaseInfo>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Carries advanced-commerce price increase details returned by `StoreKit`.
 pub struct RenewalInfoAdvancedCommercePriceIncreaseInfo {
+    /// Status reported by `StoreKit`.
     pub status: RenewalInfoAdvancedCommercePriceIncreaseStatus,
+    /// Price reported by `StoreKit`.
     pub price: String,
+    /// Dependent SKUs reported by `StoreKit`.
     pub dependent_skus: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps advanced-commerce price increase states returned by `StoreKit`.
 pub enum RenewalInfoAdvancedCommercePriceIncreaseStatus {
+    /// The `StoreKit` flow is pending further action.
     Pending,
+    /// Represents the `Accepted` `StoreKit` case.
     Accepted,
+    /// Represents the `Scheduled` `StoreKit` case.
     Scheduled,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl RenewalInfoAdvancedCommercePriceIncreaseStatus {
+    /// Returns the raw `StoreKit` string for this advanced-commerce price increase status.
     pub fn as_str(&self) -> &str {
         match self {
             Self::Pending => "pending",
@@ -372,13 +465,19 @@ impl RenewalInfoAdvancedCommercePriceIncreaseStatus {
 }
 
 impl VerificationResult<Transaction> {
-    pub fn advanced_commerce_info(&self) -> Result<Option<TransactionAdvancedCommerceInfo>, StoreKitError> {
+    /// Returns advanced-commerce metadata decoded from the `StoreKit.Transaction` payload.
+    pub fn advanced_commerce_info(
+        &self,
+    ) -> Result<Option<TransactionAdvancedCommerceInfo>, StoreKitError> {
         parse_transaction_advanced_commerce_info_payload(&self.metadata().payload_data)
     }
 }
 
 impl VerificationResult<RenewalInfo> {
-    pub fn advanced_commerce_info(&self) -> Result<Option<RenewalInfoAdvancedCommerceInfo>, StoreKitError> {
+    /// Returns advanced-commerce metadata decoded from the `StoreKit.RenewalInfo` payload.
+    pub fn advanced_commerce_info(
+        &self,
+    ) -> Result<Option<RenewalInfoAdvancedCommerceInfo>, StoreKitError> {
         parse_renewal_advanced_commerce_info_payload(&self.metadata().payload_data)
     }
 }
@@ -412,11 +511,15 @@ impl TransactionAdvancedCommerceInfoPayload {
             tax_exclusive_price: self.tax_exclusive_price,
             description: self.description,
             display_name: self.display_name,
-            period: self.period.map(SubscriptionPeriodPayload::into_subscription_period),
+            period: self
+                .period
+                .map(SubscriptionPeriodPayload::into_subscription_period),
             items: self
                 .items
                 .into_iter()
-                .map(TransactionAdvancedCommerceItemPayload::into_transaction_advanced_commerce_item)
+                .map(
+                    TransactionAdvancedCommerceItemPayload::into_transaction_advanced_commerce_item,
+                )
                 .collect(),
         }
     }
@@ -456,12 +559,16 @@ struct TransactionAdvancedCommerceItemDetailsPayload {
 }
 
 impl TransactionAdvancedCommerceItemDetailsPayload {
-    fn into_transaction_advanced_commerce_item_details(self) -> TransactionAdvancedCommerceItemDetails {
+    fn into_transaction_advanced_commerce_item_details(
+        self,
+    ) -> TransactionAdvancedCommerceItemDetails {
         TransactionAdvancedCommerceItemDetails {
             sku: self.sku,
             display_name: self.display_name,
             description: self.description,
-            offer: self.offer.map(TransactionAdvancedCommerceOfferPayload::into_transaction_advanced_commerce_offer),
+            offer: self.offer.map(
+                TransactionAdvancedCommerceOfferPayload::into_transaction_advanced_commerce_offer,
+            ),
             price: self.price,
         }
     }
@@ -573,7 +680,9 @@ struct RenewalInfoAdvancedCommercePriceIncreaseInfoPayload {
 }
 
 impl RenewalInfoAdvancedCommercePriceIncreaseInfoPayload {
-    fn into_renewal_info_advanced_commerce_price_increase_info(self) -> RenewalInfoAdvancedCommercePriceIncreaseInfo {
+    fn into_renewal_info_advanced_commerce_price_increase_info(
+        self,
+    ) -> RenewalInfoAdvancedCommercePriceIncreaseInfo {
         RenewalInfoAdvancedCommercePriceIncreaseInfo {
             status: RenewalInfoAdvancedCommercePriceIncreaseStatus::from_raw(self.status),
             price: self.price,
@@ -650,11 +759,12 @@ struct TransactionSignedPayload {
 fn parse_transaction_advanced_commerce_info_payload(
     payload_data: &[u8],
 ) -> Result<Option<TransactionAdvancedCommerceInfo>, StoreKitError> {
-    let payload = serde_json::from_slice::<TransactionSignedPayload>(payload_data).map_err(|error| {
-        StoreKitError::InvalidArgument(format!(
-            "failed to parse signed transaction payload JSON: {error}"
-        ))
-    })?;
+    let payload =
+        serde_json::from_slice::<TransactionSignedPayload>(payload_data).map_err(|error| {
+            StoreKitError::InvalidArgument(format!(
+                "failed to parse signed transaction payload JSON: {error}"
+            ))
+        })?;
     Ok(payload
         .advanced_commerce_info
         .map(TransactionAdvancedCommerceInfoPayload::into_transaction_advanced_commerce_info))
@@ -663,11 +773,12 @@ fn parse_transaction_advanced_commerce_info_payload(
 fn parse_renewal_advanced_commerce_info_payload(
     payload_data: &[u8],
 ) -> Result<Option<RenewalInfoAdvancedCommerceInfo>, StoreKitError> {
-    let payload = serde_json::from_slice::<RenewalSignedPayload>(payload_data).map_err(|error| {
-        StoreKitError::InvalidArgument(format!(
-            "failed to parse signed renewal payload JSON: {error}"
-        ))
-    })?;
+    let payload =
+        serde_json::from_slice::<RenewalSignedPayload>(payload_data).map_err(|error| {
+            StoreKitError::InvalidArgument(format!(
+                "failed to parse signed renewal payload JSON: {error}"
+            ))
+        })?;
     Ok(payload
         .advanced_commerce_info
         .map(RenewalInfoAdvancedCommerceInfoPayload::into_renewal_info_advanced_commerce_info))

@@ -12,22 +12,28 @@ use crate::product::{Product, ProductPayload};
 use crate::subscription::{SubscriptionOffer, SubscriptionOfferPayload};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.PurchaseIntent`.
 pub struct PurchaseIntent {
+    /// `StoreKit`-provided `product` value.
     pub product: Product,
+    /// Offer metadata reported by `StoreKit`.
     pub offer: Option<SubscriptionOffer>,
 }
 
 impl PurchaseIntent {
+    /// Returns the product identifier reported by `StoreKit` for this purchase intent.
     pub fn id(&self) -> &str {
         &self.product.id
     }
 
+    /// Creates a stream backed by `StoreKit` purchase intents.
     pub fn intents() -> Result<PurchaseIntentStream, StoreKitError> {
         PurchaseIntentStream::new()
     }
 }
 
 #[derive(Debug)]
+/// Wraps the `StoreKit` purchase intent stream.
 pub struct PurchaseIntentStream {
     handle: NonNull<c_void>,
     finished: bool,
@@ -51,16 +57,22 @@ impl PurchaseIntentStream {
         })
     }
 
+    /// Returns whether this `StoreKit` stream has reached the end of the sequence.
     pub const fn is_finished(&self) -> bool {
         self.finished
     }
 
     #[allow(clippy::should_implement_trait)]
+    /// Waits for the next value from the `StoreKit` stream using the default timeout.
     pub fn next(&mut self) -> Result<Option<PurchaseIntent>, StoreKitError> {
         self.next_timeout(Duration::from_secs(30))
     }
 
-    pub fn next_timeout(&mut self, timeout: Duration) -> Result<Option<PurchaseIntent>, StoreKitError> {
+    /// Waits for the next value from the `StoreKit` stream up to the supplied timeout.
+    pub fn next_timeout(
+        &mut self,
+        timeout: Duration,
+    ) -> Result<Option<PurchaseIntent>, StoreKitError> {
         let mut payload_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
         let status = unsafe {
@@ -99,7 +111,9 @@ impl PurchaseIntentPayload {
     fn into_purchase_intent(self) -> Result<PurchaseIntent, StoreKitError> {
         Ok(PurchaseIntent {
             product: self.product.into_product()?,
-            offer: self.offer.map(SubscriptionOfferPayload::into_subscription_offer),
+            offer: self
+                .offer
+                .map(SubscriptionOfferPayload::into_subscription_offer),
         })
     }
 }

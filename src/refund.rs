@@ -5,13 +5,18 @@ use crate::ffi;
 use crate::private::{cstring_from_str, error_from_status, take_string};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Represents the result returned by a `StoreKit` refund request.
 pub enum RefundRequestStatus {
+    /// The `StoreKit` operation succeeded.
     Success,
+    /// The person cancelled the `StoreKit` flow.
     UserCancelled,
+    /// Preserves an unrecognized `StoreKit` case.
     Unknown(String),
 }
 
 impl RefundRequestStatus {
+    /// Returns the raw `StoreKit` string for this refund request status.
     pub fn as_str(&self) -> &str {
         match self {
             Self::Success => "success",
@@ -30,9 +35,11 @@ impl RefundRequestStatus {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
+/// Helpers backed by `StoreKit` refund request APIs.
 pub struct Refund;
 
 impl Refund {
+    /// Begins a `StoreKit` refund request for the supplied transaction identifier.
     pub fn begin_for_transaction_id(
         transaction_id: u64,
     ) -> Result<RefundRequestStatus, StoreKitError> {
