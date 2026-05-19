@@ -1,6 +1,6 @@
 use core::ptr;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize, Serializer};
 
 use crate::error::StoreKitError;
 use crate::ffi;
@@ -16,6 +16,73 @@ use crate::transaction::{Transaction, TransactionPayload};
 use crate::verification_result::{VerificationResult, VerificationResultPayload};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Product.SubscriptionInfo.BillingPlanType`.
+pub enum BillingPlanType {
+    /// Represents the `Monthly` `StoreKit` case.
+    Monthly,
+    /// Represents the `UpFront` `StoreKit` case.
+    UpFront,
+    /// Preserves an unrecognized `StoreKit` case.
+    Unknown(String),
+}
+
+impl BillingPlanType {
+    /// Returns the raw `StoreKit` string for this billing plan type.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Monthly => "monthly",
+            Self::UpFront => "upFront",
+            Self::Unknown(value) => value.as_str(),
+        }
+    }
+
+    pub(crate) fn from_raw(raw: String) -> Self {
+        match raw.as_str() {
+            "monthly" => Self::Monthly,
+            "upFront" => Self::UpFront,
+            _ => Self::Unknown(raw),
+        }
+    }
+}
+
+impl Serialize for BillingPlanType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Product.SubscriptionInfo.CommitmentInfo`.
+pub struct SubscriptionCommitmentInfo {
+    /// Price reported by `StoreKit`.
+    pub price: String,
+    /// Localized display price reported by `StoreKit`.
+    pub display_price: String,
+    /// Billing period reported by `StoreKit`.
+    pub period: SubscriptionPeriod,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Product.SubscriptionInfo.PricingTerms`.
+pub struct SubscriptionPricingTerms {
+    /// Billing price reported by `StoreKit`.
+    pub billing_price: String,
+    /// Localized billing display price reported by `StoreKit`.
+    pub billing_display_price: String,
+    /// Billing period reported by `StoreKit`.
+    pub billing_period: SubscriptionPeriod,
+    /// Billing plan type reported by `StoreKit`.
+    pub billing_plan_type: BillingPlanType,
+    /// Commitment info reported by `StoreKit`.
+    pub commitment_info: SubscriptionCommitmentInfo,
+    /// Subscription offers reported by `StoreKit`.
+    pub subscription_offers: Vec<SubscriptionOffer>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// Wraps `StoreKit.Product.SubscriptionInfo`.
 pub struct SubscriptionInfo {
     /// Introductory offer reported by `StoreKit`.
@@ -28,6 +95,8 @@ pub struct SubscriptionInfo {
     pub subscription_group_id: String,
     /// Subscription period reported by `StoreKit`.
     pub subscription_period: SubscriptionPeriod,
+    /// Pricing terms reported by `StoreKit`.
+    pub pricing_terms: Vec<SubscriptionPricingTerms>,
     /// Subscription group level reported by `StoreKit`.
     pub group_level: Option<i64>,
     /// Subscription group display name reported by `StoreKit`.
@@ -142,10 +211,63 @@ pub(crate) struct SubscriptionInfoPayload {
     subscription_group_id: String,
     #[serde(rename = "subscriptionPeriod")]
     subscription_period: SubscriptionPeriodPayload,
+    #[serde(default, rename = "pricingTerms")]
+    pricing_terms: Vec<SubscriptionPricingTermsPayload>,
     #[serde(rename = "groupLevel")]
     group_level: Option<i64>,
     #[serde(rename = "groupDisplayName")]
     group_display_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct SubscriptionCommitmentInfoPayload {
+    price: String,
+    #[serde(rename = "displayPrice")]
+    display_price: String,
+    period: SubscriptionPeriodPayload,
+}
+
+impl SubscriptionCommitmentInfoPayload {
+    pub(crate) fn into_subscription_commitment_info(self) -> SubscriptionCommitmentInfo {
+        SubscriptionCommitmentInfo {
+            price: self.price,
+            display_price: self.display_price,
+            period: self.period.into_subscription_period(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct SubscriptionPricingTermsPayload {
+    #[serde(rename = "billingPrice")]
+    billing_price: String,
+    #[serde(rename = "billingDisplayPrice")]
+    billing_display_price: String,
+    #[serde(rename = "billingPeriod")]
+    billing_period: SubscriptionPeriodPayload,
+    #[serde(rename = "billingPlanType")]
+    billing_plan_type: String,
+    #[serde(rename = "commitmentInfo")]
+    commitment_info: SubscriptionCommitmentInfoPayload,
+    #[serde(default, rename = "subscriptionOffers")]
+    subscription_offers: Vec<SubscriptionOfferPayload>,
+}
+
+impl SubscriptionPricingTermsPayload {
+    pub(crate) fn into_subscription_pricing_terms(self) -> SubscriptionPricingTerms {
+        SubscriptionPricingTerms {
+            billing_price: self.billing_price,
+            billing_display_price: self.billing_display_price,
+            billing_period: self.billing_period.into_subscription_period(),
+            billing_plan_type: BillingPlanType::from_raw(self.billing_plan_type),
+            commitment_info: self.commitment_info.into_subscription_commitment_info(),
+            subscription_offers: self
+                .subscription_offers
+                .into_iter()
+                .map(SubscriptionOfferPayload::into_subscription_offer)
+                .collect(),
+        }
+    }
 }
 
 impl SubscriptionInfoPayload {
@@ -166,6 +288,11 @@ impl SubscriptionInfoPayload {
                 .collect(),
             subscription_group_id: self.subscription_group_id,
             subscription_period: self.subscription_period.into_subscription_period(),
+            pricing_terms: self
+                .pricing_terms
+                .into_iter()
+                .map(SubscriptionPricingTermsPayload::into_subscription_pricing_terms)
+                .collect(),
             group_level: self.group_level,
             group_display_name: self.group_display_name,
         }

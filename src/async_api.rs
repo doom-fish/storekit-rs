@@ -301,7 +301,7 @@ impl AsyncPurchase {
         let id = cstring_from_str(product_id, "product id")?;
         let opts = json_cstring(options, "purchase options")?;
         let (future, ctx) = AsyncCompletion::create();
-        unsafe { crate::ffi::sk_product_purchase_async(id.as_ptr(), opts.as_ptr(), purchase_cb, ctx) }
+        unsafe { crate::ffi::sk_product_purchase_async(id.as_ptr(), opts.as_ptr(), purchase_cb, ctx); }
         Ok(PurchaseFuture { inner: future })
     }
 }

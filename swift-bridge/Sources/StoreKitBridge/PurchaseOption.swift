@@ -4,6 +4,7 @@ import StoreKit
 struct SKPurchaseOptionPayload: Codable {
     let kind: String
     let appAccountToken: String?
+    let billingPlanType: String?
     let quantity: Int?
     let simulateAskToBuyInSandbox: Bool?
     let key: String?
@@ -34,6 +35,14 @@ func skBuildPurchaseOptions(
                 throw SKBridgeError.invalidArgument("purchase option appAccountToken requires a valid UUID")
             }
             options.insert(.appAccountToken(uuid))
+        case "billingPlanType":
+            guard #available(macOS 26.4, *) else {
+                throw SKBridgeError.notSupported("billing plan type purchase options require macOS 26.4+")
+            }
+            guard let rawValue = payload.billingPlanType else {
+                throw SKBridgeError.invalidArgument("purchase option billingPlanType requires a raw value")
+            }
+            options.insert(.billingPlanType(Product.SubscriptionInfo.BillingPlanType(rawValue: rawValue)))
         case "quantity":
             guard let quantity = payload.quantity else {
                 throw SKBridgeError.invalidArgument("purchase option quantity requires an integer value")

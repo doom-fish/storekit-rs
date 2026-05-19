@@ -1,6 +1,7 @@
 use serde::Deserialize;
 
 use crate::app_store::AppStoreEnvironment;
+use crate::subscription_info::BillingPlanType;
 use crate::transaction::{TransactionOffer, TransactionOfferPayload};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,6 +77,21 @@ impl PriceIncreaseStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Product.SubscriptionInfo.RenewalInfo.CommitmentInfo`.
+pub struct RenewalCommitmentInfo {
+    /// Auto-renew preference reported by `StoreKit`.
+    pub auto_renew_preference: String,
+    /// Renewal billing plan type reported by `StoreKit`.
+    pub renewal_billing_plan_type: BillingPlanType,
+    /// Renewal date reported by `StoreKit`.
+    pub renewal_date: String,
+    /// Renewal price reported by `StoreKit`.
+    pub renewal_price: String,
+    /// Whether `StoreKit` reports that the renewal will auto-renew.
+    pub will_auto_renew: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// Wraps `StoreKit.RenewalInfo`.
 pub struct RenewalInfo {
     /// Original `StoreKit` transaction identifier.
@@ -104,6 +120,10 @@ pub struct RenewalInfo {
     pub renewal_date: Option<String>,
     /// Renewal price reported by `StoreKit`.
     pub renewal_price: Option<String>,
+    /// Commitment info reported by `StoreKit`.
+    pub commitment_info: Option<RenewalCommitmentInfo>,
+    /// Renewal billing plan type reported by `StoreKit`.
+    pub renewal_billing_plan_type: Option<BillingPlanType>,
     /// Currency code reported by `StoreKit`.
     pub currency_code: Option<String>,
     /// Eligible win-back offer identifiers reported by `StoreKit`.
@@ -140,6 +160,10 @@ pub(crate) struct RenewalInfoPayload {
     renewal_date: Option<String>,
     #[serde(rename = "renewalPrice")]
     renewal_price: Option<String>,
+    #[serde(rename = "commitmentInfo")]
+    commitment_info: Option<RenewalCommitmentInfoPayload>,
+    #[serde(rename = "renewalBillingPlanType")]
+    renewal_billing_plan_type: Option<String>,
     #[serde(rename = "currencyCode")]
     currency_code: Option<String>,
     #[serde(rename = "eligibleWinBackOfferIDs")]
@@ -148,6 +172,32 @@ pub(crate) struct RenewalInfoPayload {
     app_account_token: Option<String>,
     #[serde(rename = "appTransactionID")]
     app_transaction_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct RenewalCommitmentInfoPayload {
+    #[serde(rename = "autoRenewPreference")]
+    auto_renew_preference: String,
+    #[serde(rename = "renewalBillingPlanType")]
+    renewal_billing_plan_type: String,
+    #[serde(rename = "renewalDate")]
+    renewal_date: String,
+    #[serde(rename = "renewalPrice")]
+    renewal_price: String,
+    #[serde(rename = "willAutoRenew")]
+    will_auto_renew: bool,
+}
+
+impl RenewalCommitmentInfoPayload {
+    pub(crate) fn into_renewal_commitment_info(self) -> RenewalCommitmentInfo {
+        RenewalCommitmentInfo {
+            auto_renew_preference: self.auto_renew_preference,
+            renewal_billing_plan_type: BillingPlanType::from_raw(self.renewal_billing_plan_type),
+            renewal_date: self.renewal_date,
+            renewal_price: self.renewal_price,
+            will_auto_renew: self.will_auto_renew,
+        }
+    }
 }
 
 impl RenewalInfoPayload {
@@ -168,6 +218,12 @@ impl RenewalInfoPayload {
             recent_subscription_start_date: self.recent_subscription_start_date,
             renewal_date: self.renewal_date,
             renewal_price: self.renewal_price,
+            commitment_info: self
+                .commitment_info
+                .map(RenewalCommitmentInfoPayload::into_renewal_commitment_info),
+            renewal_billing_plan_type: self
+                .renewal_billing_plan_type
+                .map(BillingPlanType::from_raw),
             currency_code: self.currency_code,
             eligible_win_back_offer_ids: self.eligible_win_back_offer_ids,
             app_account_token: self.app_account_token,

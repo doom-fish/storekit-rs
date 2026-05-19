@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0] - 2026-05-19
+
+### Added
+
+- Added `BillingPlanType` plus `PurchaseOption::BillingPlanType` for StoreKit's subscription billing-plan purchase option.
+- Added `SubscriptionCommitmentInfo`, `SubscriptionPricingTerms`, and `SubscriptionInfo::pricing_terms` for subscription pricing-term and commitment metadata.
+- Added `RenewalCommitmentInfo` plus `RenewalInfo::{commitment_info, renewal_billing_plan_type}` for renewal commitment snapshots.
+- Added `TransactionCommitmentInfo`, `RevocationType`, and `TransactionData::{revocation_type, billing_plan_type, commitment_info}` for transaction commitment and revocation metadata.
+- Added integration tests covering billing-plan, pricing-terms, renewal-commitment, transaction-commitment, and revocation wrappers.
+
+### Changed
+
+- Refreshed `COVERAGE_AUDIT.md` against `MacOSX26.5.sdk` and moved the 38 newly audited StoreKit symbols to VERIFIED.
+- Bumped crate version from `0.3.2` to `0.4.0`.
+
 ## [0.3.2] - 2026-05-18
 
 ### Changed

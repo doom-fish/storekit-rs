@@ -1,12 +1,40 @@
 import Foundation
 import StoreKit
 
+@available(macOS 26.4, *)
+func skBillingPlanTypeName(_ type: Product.SubscriptionInfo.BillingPlanType) -> String {
+    switch type {
+    case .monthly:
+        return "monthly"
+    case .upFront:
+        return "upFront"
+    default:
+        return type.rawValue
+    }
+}
+
+struct SKSubscriptionCommitmentInfoPayload: Codable {
+    let price: String
+    let displayPrice: String
+    let period: SKSubscriptionPeriodPayload
+}
+
+struct SKSubscriptionPricingTermsPayload: Codable {
+    let billingPrice: String
+    let billingDisplayPrice: String
+    let billingPeriod: SKSubscriptionPeriodPayload
+    let billingPlanType: String
+    let commitmentInfo: SKSubscriptionCommitmentInfoPayload
+    let subscriptionOffers: [SKSubscriptionOfferPayload]
+}
+
 struct SKSubscriptionInfoPayload: Codable {
     let introductoryOffer: SKSubscriptionOfferPayload?
     let promotionalOffers: [SKSubscriptionOfferPayload]
     let winBackOffers: [SKSubscriptionOfferPayload]
     let subscriptionGroupID: String
     let subscriptionPeriod: SKSubscriptionPeriodPayload
+    let pricingTerms: [SKSubscriptionPricingTermsPayload]
     let groupLevel: Int?
     let groupDisplayName: String?
 }
@@ -15,6 +43,31 @@ struct SKSubscriptionStatusPayload: Codable {
     let state: String
     let transaction: SKVerificationResultPayload<SKTransactionPayload>
     let renewalInfo: SKVerificationResultPayload<SKRenewalInfoPayload>
+}
+
+@available(macOS 26.4, *)
+func skSubscriptionCommitmentInfoPayload(
+    from commitmentInfo: Product.SubscriptionInfo.CommitmentInfo
+) -> SKSubscriptionCommitmentInfoPayload {
+    SKSubscriptionCommitmentInfoPayload(
+        price: NSDecimalNumber(decimal: commitmentInfo.price).stringValue,
+        displayPrice: commitmentInfo.displayPrice,
+        period: skSubscriptionPeriodPayload(from: commitmentInfo.period)
+    )
+}
+
+@available(macOS 26.4, *)
+func skSubscriptionPricingTermsPayload(
+    from pricingTerms: Product.SubscriptionInfo.PricingTerms
+) -> SKSubscriptionPricingTermsPayload {
+    SKSubscriptionPricingTermsPayload(
+        billingPrice: NSDecimalNumber(decimal: pricingTerms.billingPrice).stringValue,
+        billingDisplayPrice: pricingTerms.billingDisplayPrice,
+        billingPeriod: skSubscriptionPeriodPayload(from: pricingTerms.billingPeriod),
+        billingPlanType: skBillingPlanTypeName(pricingTerms.billingPlanType),
+        commitmentInfo: skSubscriptionCommitmentInfoPayload(from: pricingTerms.commitmentInfo),
+        subscriptionOffers: pricingTerms.subscriptionOffers.map(skSubscriptionOfferPayload(from:))
+    )
 }
 
 func skSubscriptionInfoPayload(from info: Product.SubscriptionInfo) -> SKSubscriptionInfoPayload {
@@ -35,12 +88,20 @@ func skSubscriptionInfoPayload(from info: Product.SubscriptionInfo) -> SKSubscri
         winBackOffers = []
     }
 
+    let pricingTerms: [SKSubscriptionPricingTermsPayload]
+    if #available(macOS 26.4, *) {
+        pricingTerms = info.pricingTerms.map(skSubscriptionPricingTermsPayload(from:))
+    } else {
+        pricingTerms = []
+    }
+
     return SKSubscriptionInfoPayload(
         introductoryOffer: info.introductoryOffer.map(skSubscriptionOfferPayload(from:)),
         promotionalOffers: info.promotionalOffers.map(skSubscriptionOfferPayload(from:)),
         winBackOffers: winBackOffers,
         subscriptionGroupID: info.subscriptionGroupID,
         subscriptionPeriod: skSubscriptionPeriodPayload(from: info.subscriptionPeriod),
+        pricingTerms: pricingTerms,
         groupLevel: groupLevel,
         groupDisplayName: groupDisplayName
     )

@@ -1,7 +1,7 @@
-# storekit-rs coverage audit (vs MacOSX26.2.sdk)
+# storekit-rs coverage audit (vs MacOSX26.5.sdk)
 
-SDK_PUBLIC_SYMBOLS: 57
-VERIFIED: 47
+SDK_PUBLIC_SYMBOLS: 95
+VERIFIED: 85
 GAPS: 0
 EXEMPT: 10
 COVERAGE_PCT: 100.0%
@@ -11,6 +11,7 @@ Scope notes:
 - Excluded legacy `SK*` StoreKit 1 Objective-C APIs plus protocol-conformance/debug noise (`Equatable`, `Hashable`, `Sendable`, `debugDescription`, etc.).
 - Rows collapse closely related overloads/properties into one audit unit. Rust-side wrappers sometimes normalize `Date`, `Decimal`, `UUID`, and `Locale.Currency` into strings/bytes; these still count as VERIFIED when the StoreKit data is publicly reachable.
 - Excluded `StoreDownloaderExtension` from the counts because it is a `BackgroundAssets` extension-point protocol rather than a runtime StoreKit 2 commerce API.
+- Refreshed against `MacOSX26.5.sdk`; the 38 new macOS 26.4/26.5 billing-plan, pricing-terms, commitment, and revocation symbols are now wrapped.
 
 ## 🟢 VERIFIED
 | Symbol | Kind | Header | Wrapped by |
@@ -27,17 +28,18 @@ Scope notes:
 | `Product.SubscriptionPeriod` | nested struct | `StoreKit.swiftinterface` | `SubscriptionPeriod` |
 | `Product.SubscriptionPeriod.Unit` | nested type | `StoreKit.swiftinterface` | `SubscriptionPeriodUnit` |
 | `Product.SubscriptionInfo` | nested struct | `StoreKit.swiftinterface` | `SubscriptionInfo` |
-| `Product.SubscriptionInfo.{introductoryOffer,promotionalOffers,winBackOffers,subscriptionGroupID,subscriptionPeriod,groupLevel,groupDisplayName}` | property family | `StoreKit.swiftinterface` | `SubscriptionInfo` fields |
+| `Product.SubscriptionInfo.{BillingPeriod,BillingPlanType,CommitmentInfo,PricingTerms}` | nested type family | `StoreKit.swiftinterface` | `SubscriptionPeriod`, `BillingPlanType`, `SubscriptionCommitmentInfo`, `SubscriptionPricingTerms` |
+| `Product.SubscriptionInfo.{introductoryOffer,promotionalOffers,winBackOffers,subscriptionGroupID,subscriptionPeriod,pricingTerms,groupLevel,groupDisplayName}` | property family | `StoreKit.swiftinterface` | `SubscriptionInfo` fields |
 | `Product.SubscriptionInfo.{isEligibleForIntroOffer,isEligibleForIntroOffer(for:)}` | property + static func | `StoreKit.swiftinterface` | `SubscriptionInfo::is_eligible_for_intro_offer()`, `SubscriptionInfo::is_eligible_for_intro_offer_for(...)` |
 | `Product.SubscriptionInfo.{status,status(for:)}` | property + static func | `StoreKit.swiftinterface` | `SubscriptionInfo::status()`, `SubscriptionInfo::status_for(...)` |
 | `Product.SubscriptionInfo.status(transactionID:)` | static func | `StoreKit.swiftinterface` | `SubscriptionInfo::status_for_transaction(...)` |
 | `Product.SubscriptionInfo.RenewalState` | nested type | `StoreKit.swiftinterface` | `RenewalState` |
 | `Product.SubscriptionInfo.RenewalInfo` | nested struct | `StoreKit.swiftinterface` | `RenewalInfo` |
-| `Product.SubscriptionInfo.RenewalInfo.{ExpirationReason,PriceIncreaseStatus}` | nested type family | `StoreKit.swiftinterface` | `ExpirationReason`, `PriceIncreaseStatus` |
-| `Product.SubscriptionInfo.RenewalInfo.{originalTransactionID,currentProductID,willAutoRenew,autoRenewPreference,expirationReason,priceIncreaseStatus,isInBillingRetry,gracePeriodExpirationDate,offer,environment,recentSubscriptionStartDate,renewalDate,renewalPrice,currency,eligibleWinBackOfferIDs,appAccountToken,appTransactionID,jsonRepresentation}` | property family | `StoreKit.swiftinterface` | `RenewalInfo` fields (currency normalized to ISO code string) |
+| `Product.SubscriptionInfo.RenewalInfo.{ExpirationReason,PriceIncreaseStatus,CommitmentInfo}` | nested type family | `StoreKit.swiftinterface` | `ExpirationReason`, `PriceIncreaseStatus`, `RenewalCommitmentInfo` |
+| `Product.SubscriptionInfo.RenewalInfo.{originalTransactionID,currentProductID,willAutoRenew,autoRenewPreference,expirationReason,priceIncreaseStatus,isInBillingRetry,gracePeriodExpirationDate,offer,environment,recentSubscriptionStartDate,renewalDate,renewalPrice,commitmentInfo,renewalBillingPlanType,currency,eligibleWinBackOfferIDs,appAccountToken,appTransactionID,jsonRepresentation}` | property family | `StoreKit.swiftinterface` | `RenewalInfo` fields (currency normalized to ISO code string) |
 | `Product.SubscriptionInfo.Status` | nested struct | `StoreKit.swiftinterface` | `SubscriptionStatus` |
 | `Product.SubscriptionInfo.Status.{state,transaction,renewalInfo}` | property family | `StoreKit.swiftinterface` | `SubscriptionStatus` fields |
-| `Product.PurchaseOption.{appAccountToken,quantity,simulatesAskToBuyInSandbox,custom(key:value:)}` | static func family | `StoreKit.swiftinterface` | `PurchaseOption::{AppAccountToken,Quantity,SimulatesAskToBuyInSandbox,Custom*}` |
+| `Product.PurchaseOption.{appAccountToken,billingPlanType(_:),quantity,simulatesAskToBuyInSandbox,custom(key:value:)}` | static func family | `StoreKit.swiftinterface` | `PurchaseOption::{AppAccountToken,BillingPlanType,Quantity,SimulatesAskToBuyInSandbox,Custom*}` |
 | `Product.PurchaseOption.{promotionalOffer(_:compactJWS),introductoryOfferEligibility(compactJWS:),winBackOffer(_)}` | static func family | `StoreKit.swiftinterface` | `PurchaseOption::{PromotionalOfferCompactJws,IntroductoryOfferEligibility,WinBackOffer}` |
 | `Product.PurchaseOption.onStorefrontChange(shouldContinuePurchase:)` | static func | `StoreKit.swiftinterface` | `PurchaseOption::OnStorefrontChange` (constant continue/cancel policy) |
 | `Product.PurchaseResult` | nested enum | `StoreKit.swiftinterface` | `PurchaseResult` |
@@ -46,8 +48,8 @@ Scope notes:
 | `Transaction.{latest(for:),all(for:),currentEntitlements(for:)}` | static lookup/stream family | `StoreKit.swiftinterface` | `Transaction::{latest_for,all_for,current_entitlements_for}` |
 | `Transaction.finish()` | instance func | `StoreKit.swiftinterface` | `Transaction::finish()` |
 | `Transaction.{beginRefundRequest(in:),beginRefundRequest(for:in:),subscriptionStatus}` | func/property family | `StoreKit.swiftinterface` | `Transaction::begin_refund_request()`, `Refund::begin_for_transaction_id(...)`, `SubscriptionInfo::status_for_transaction(...)` |
-| `Transaction.{Reason,RevocationReason,OfferType,OwnershipType,Offer,Offer.PaymentMode,RefundRequestStatus}` | nested type family | `StoreKit.swiftinterface` | `TransactionReason`, `RevocationReason`, `OfferType`, `OwnershipType`, `TransactionOffer`, `OfferPaymentMode`, `RefundRequestStatus` |
-| `Transaction.{id,originalID,webOrderLineItemID,productID,subscriptionGroupID,appBundleID,purchaseDate,originalPurchaseDate,expirationDate,purchasedQuantity,isUpgraded,offer,revocationDate,revocationReason,productType,appAccountToken,environment,reason,storefront,price,currency,appTransactionID,jsonRepresentation}` | property family | `StoreKit.swiftinterface` | `TransactionData` fields + `VerificationMetadata` |
+| `Transaction.{Reason,RevocationReason,RevocationType,OfferType,OwnershipType,Offer,Offer.PaymentMode,RefundRequestStatus,CommitmentInfo}` | nested type family | `StoreKit.swiftinterface` | `TransactionReason`, `RevocationReason`, `RevocationType`, `OfferType`, `OwnershipType`, `TransactionOffer`, `OfferPaymentMode`, `RefundRequestStatus`, `TransactionCommitmentInfo` |
+| `Transaction.{id,originalID,webOrderLineItemID,productID,subscriptionGroupID,appBundleID,purchaseDate,originalPurchaseDate,expirationDate,purchasedQuantity,isUpgraded,offer,revocationDate,revocationReason,revocationType,productType,appAccountToken,environment,reason,storefront,price,currency,billingPlanType,commitmentInfo,appTransactionID,jsonRepresentation}` | property family | `StoreKit.swiftinterface` | `TransactionData` fields + `VerificationMetadata` |
 | `VerificationResult.{verified,unverified,payloadValue,unsafePayloadValue,VerificationError}` | enum/accessor family | `StoreKit.swiftinterface` | `VerificationResult<T>`, `VerificationErrorCode`, `VerificationFailure` |
 | `VerificationResult<Transaction/AppTransaction/RenewalInfo>.{jwsRepresentation,headerData,payloadData,signatureData,signedData,signedDate,deviceVerification,deviceVerificationNonce}` | extension property family | `StoreKit.swiftinterface` | `VerificationMetadata` |
 | `Storefront` | struct | `StoreKit.swiftinterface` | `storekit::Storefront` |

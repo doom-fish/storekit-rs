@@ -1,6 +1,14 @@
 import Foundation
 import StoreKit
 
+struct SKRenewalCommitmentInfoPayload: Codable {
+    let autoRenewPreference: String
+    let renewalBillingPlanType: String
+    let renewalDate: String
+    let renewalPrice: String
+    let willAutoRenew: Bool
+}
+
 struct SKRenewalInfoPayload: Codable {
     let originalTransactionID: UInt64
     let currentProductID: String
@@ -15,10 +23,25 @@ struct SKRenewalInfoPayload: Codable {
     let recentSubscriptionStartDate: String
     let renewalDate: String?
     let renewalPrice: String?
+    let commitmentInfo: SKRenewalCommitmentInfoPayload?
+    let renewalBillingPlanType: String?
     let currencyCode: String?
     let eligibleWinBackOfferIDs: [String]
     let appAccountToken: String?
     let appTransactionID: String?
+}
+
+@available(macOS 26.4, *)
+func skRenewalCommitmentInfoPayload(
+    from commitmentInfo: Product.SubscriptionInfo.RenewalInfo.CommitmentInfo
+) -> SKRenewalCommitmentInfoPayload {
+    SKRenewalCommitmentInfoPayload(
+        autoRenewPreference: commitmentInfo.autoRenewPreference,
+        renewalBillingPlanType: skBillingPlanTypeName(commitmentInfo.renewalBillingPlanType),
+        renewalDate: skFormatDate(commitmentInfo.renewalDate),
+        renewalPrice: NSDecimalNumber(decimal: commitmentInfo.renewalPrice).stringValue,
+        willAutoRenew: commitmentInfo.willAutoRenew
+    )
 }
 
 func skRenewalInfoPayload(from info: Product.SubscriptionInfo.RenewalInfo) -> SKRenewalInfoPayload {
@@ -51,6 +74,16 @@ func skRenewalInfoPayload(from info: Product.SubscriptionInfo.RenewalInfo) -> SK
         renewalPrice = nil
     }
 
+    let commitmentInfo: SKRenewalCommitmentInfoPayload?
+    let renewalBillingPlanType: String?
+    if #available(macOS 26.4, *) {
+        commitmentInfo = info.commitmentInfo.map(skRenewalCommitmentInfoPayload(from:))
+        renewalBillingPlanType = info.renewalBillingPlanType.map(skBillingPlanTypeName(_:))
+    } else {
+        commitmentInfo = nil
+        renewalBillingPlanType = nil
+    }
+
     let currencyCode: String?
     if #available(macOS 15.0, *) {
         currencyCode = info.currency?.identifier
@@ -79,6 +112,8 @@ func skRenewalInfoPayload(from info: Product.SubscriptionInfo.RenewalInfo) -> SK
         recentSubscriptionStartDate: skFormatDate(info.recentSubscriptionStartDate),
         renewalDate: renewalDate,
         renewalPrice: renewalPrice,
+        commitmentInfo: commitmentInfo,
+        renewalBillingPlanType: renewalBillingPlanType,
         currencyCode: currencyCode,
         eligibleWinBackOfferIDs: eligibleWinBackOfferIDs,
         appAccountToken: info.appAccountToken?.uuidString,

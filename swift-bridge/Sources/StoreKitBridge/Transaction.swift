@@ -13,6 +13,13 @@ struct SKTransactionOfferPayload: Codable {
     let period: SKSubscriptionPeriodPayload?
 }
 
+struct SKTransactionCommitmentInfoPayload: Codable {
+    let billingPeriodNumber: UInt64
+    let totalBillingPeriods: UInt64
+    let expirationDate: String
+    let price: String
+}
+
 struct SKTransactionPayload: Codable {
     let id: UInt64
     let originalID: UInt64
@@ -31,6 +38,7 @@ struct SKTransactionPayload: Codable {
     let verificationError: SKVerificationErrorPayload?
     let revocationDate: String?
     let revocationReason: String?
+    let revocationType: String?
     let productType: String?
     let appAccountToken: String?
     let environment: String?
@@ -38,6 +46,8 @@ struct SKTransactionPayload: Codable {
     let storefront: SKStorefrontPayload?
     let price: String?
     let currencyCode: String?
+    let billingPlanType: String?
+    let commitmentInfo: SKTransactionCommitmentInfoPayload?
     let appTransactionID: String?
     let offer: SKTransactionOfferPayload?
     let advancedCommerceInfo: SKTransactionAdvancedCommerceInfoPayload?
@@ -75,6 +85,20 @@ func skTransactionRevocationReasonName(_ reason: Transaction.RevocationReason) -
         return "other"
     default:
         return "other"
+    }
+}
+
+@available(macOS 26.4, *)
+func skTransactionRevocationTypeName(_ type: Transaction.RevocationType) -> String {
+    switch type {
+    case .familyRevocation:
+        return "familyRevocation"
+    case .fullRefund:
+        return "fullRefund"
+    case .proratedRefund:
+        return "proratedRefund"
+    default:
+        return type.rawValue
     }
 }
 
@@ -136,6 +160,18 @@ func skLegacyTransactionOfferPayload(from transaction: Transaction) -> SKTransac
     return SKTransactionOfferPayload(id: offerID, type: type, paymentMode: paymentMode, period: nil)
 }
 
+@available(macOS 26.4, *)
+func skTransactionCommitmentInfoPayload(
+    from commitmentInfo: Transaction.CommitmentInfo
+) -> SKTransactionCommitmentInfoPayload {
+    SKTransactionCommitmentInfoPayload(
+        billingPeriodNumber: commitmentInfo.billingPeriodNumber,
+        totalBillingPeriods: commitmentInfo.totalBillingPeriods,
+        expirationDate: skFormatDate(commitmentInfo.expirationDate),
+        price: NSDecimalNumber(decimal: commitmentInfo.price).stringValue
+    )
+}
+
 func skTransactionPayload(from result: VerificationResult<Transaction>) -> SKTransactionPayload {
     let transaction = result.unsafePayloadValue
     let verificationError: SKVerificationErrorPayload?
@@ -193,6 +229,19 @@ func skTransactionPayload(from result: VerificationResult<Transaction>) -> SKTra
         advancedCommerceInfo = nil
     }
 
+    let revocationType: String?
+    let billingPlanType: String?
+    let commitmentInfo: SKTransactionCommitmentInfoPayload?
+    if #available(macOS 26.4, *) {
+        revocationType = transaction.revocationType.map(skTransactionRevocationTypeName(_:))
+        billingPlanType = transaction.billingPlanType.map(skBillingPlanTypeName(_:))
+        commitmentInfo = transaction.commitmentInfo.map(skTransactionCommitmentInfoPayload(from:))
+    } else {
+        revocationType = nil
+        billingPlanType = nil
+        commitmentInfo = nil
+    }
+
     let currencyCode: String?
     if #available(macOS 13.0, *) {
         currencyCode = transaction.currencyCode
@@ -218,6 +267,7 @@ func skTransactionPayload(from result: VerificationResult<Transaction>) -> SKTra
         verificationError: verificationError,
         revocationDate: transaction.revocationDate.map(skFormatDate),
         revocationReason: transaction.revocationReason.map(skTransactionRevocationReasonName(_:)),
+        revocationType: revocationType,
         productType: skProductTypeName(transaction.productType),
         appAccountToken: transaction.appAccountToken?.uuidString,
         environment: environment,
@@ -225,6 +275,8 @@ func skTransactionPayload(from result: VerificationResult<Transaction>) -> SKTra
         storefront: storefront,
         price: price,
         currencyCode: currencyCode,
+        billingPlanType: billingPlanType,
+        commitmentInfo: commitmentInfo,
         appTransactionID: transaction.appTransactionID,
         offer: offer,
         advancedCommerceInfo: advancedCommerceInfo,

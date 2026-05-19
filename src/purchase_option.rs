@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::error::StoreKitError;
+use crate::subscription_info::BillingPlanType;
 use crate::transaction::{Transaction, TransactionPayload};
 use crate::verification_result::{VerificationResult, VerificationResultPayload};
 
@@ -12,6 +13,12 @@ pub enum PurchaseOption {
     AppAccountToken {
         /// App account token reported by `StoreKit`.
         app_account_token: String,
+    },
+    /// Represents the `BillingPlanType` `StoreKit` case.
+    BillingPlanType {
+        /// Value forwarded to `StoreKit` for `billingPlanType`.
+        #[serde(rename = "billingPlanType")]
+        billing_plan_type: BillingPlanType,
     },
     /// Represents the `Quantity` `StoreKit` case.
     Quantity {

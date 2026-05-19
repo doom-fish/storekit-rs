@@ -19,6 +19,7 @@ use crate::product::ProductType;
 use crate::refund::{Refund, RefundRequestStatus};
 use crate::storefront::{Storefront, StorefrontPayload};
 use crate::subscription::{SubscriptionPeriod, SubscriptionPeriodPayload};
+use crate::subscription_info::BillingPlanType;
 pub use crate::verification_result::VerificationResult;
 
 use crate::verification_result::VerificationResultPayload;
@@ -78,6 +79,40 @@ impl RevocationReason {
         match raw.as_str() {
             "developerIssue" => Self::DeveloperIssue,
             "other" => Self::Other,
+            _ => Self::Unknown(raw),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Transaction.RevocationType`.
+pub enum RevocationType {
+    /// Represents the `FamilyRevocation` `StoreKit` case.
+    FamilyRevocation,
+    /// Represents the `FullRefund` `StoreKit` case.
+    FullRefund,
+    /// Represents the `ProratedRefund` `StoreKit` case.
+    ProratedRefund,
+    /// Preserves an unrecognized `StoreKit` case.
+    Unknown(String),
+}
+
+impl RevocationType {
+    /// Returns the raw `StoreKit` string for this revocation type.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::FamilyRevocation => "familyRevocation",
+            Self::FullRefund => "fullRefund",
+            Self::ProratedRefund => "proratedRefund",
+            Self::Unknown(value) => value.as_str(),
+        }
+    }
+
+    fn from_raw(raw: String) -> Self {
+        match raw.as_str() {
+            "familyRevocation" => Self::FamilyRevocation,
+            "fullRefund" => Self::FullRefund,
+            "proratedRefund" => Self::ProratedRefund,
             _ => Self::Unknown(raw),
         }
     }
@@ -173,6 +208,19 @@ pub struct TransactionOffer {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Wraps `StoreKit.Transaction.CommitmentInfo`.
+pub struct TransactionCommitmentInfo {
+    /// Billing period number reported by `StoreKit`.
+    pub billing_period_number: u64,
+    /// Total billing periods reported by `StoreKit`.
+    pub total_billing_periods: u64,
+    /// Expiration date reported by `StoreKit`.
+    pub expiration_date: String,
+    /// Price reported by `StoreKit`.
+    pub price: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// Wraps `StoreKit.Transaction.OwnershipType`.
 pub enum OwnershipType {
     /// Represents the `Purchased` `StoreKit` case.
@@ -230,6 +278,8 @@ pub struct TransactionData {
     pub revocation_date: Option<String>,
     /// Revocation reason reported by `StoreKit`.
     pub revocation_reason: Option<RevocationReason>,
+    /// Revocation type reported by `StoreKit`.
+    pub revocation_type: Option<RevocationType>,
     /// Product type reported by `StoreKit`.
     pub product_type: Option<ProductType>,
     /// App account token reported by `StoreKit`.
@@ -244,6 +294,10 @@ pub struct TransactionData {
     pub price: Option<String>,
     /// Currency code reported by `StoreKit`.
     pub currency_code: Option<String>,
+    /// Billing plan type reported by `StoreKit`.
+    pub billing_plan_type: Option<BillingPlanType>,
+    /// Commitment info reported by `StoreKit`.
+    pub commitment_info: Option<TransactionCommitmentInfo>,
     /// App transaction identifier reported by `StoreKit`.
     pub app_transaction_id: Option<String>,
     /// Offer metadata reported by `StoreKit`.
@@ -635,6 +689,28 @@ impl TransactionOfferPayload {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct TransactionCommitmentInfoPayload {
+    #[serde(rename = "billingPeriodNumber")]
+    billing_period_number: u64,
+    #[serde(rename = "totalBillingPeriods")]
+    total_billing_periods: u64,
+    #[serde(rename = "expirationDate")]
+    expiration_date: String,
+    price: String,
+}
+
+impl TransactionCommitmentInfoPayload {
+    pub(crate) fn into_transaction_commitment_info(self) -> TransactionCommitmentInfo {
+        TransactionCommitmentInfo {
+            billing_period_number: self.billing_period_number,
+            total_billing_periods: self.total_billing_periods,
+            expiration_date: self.expiration_date,
+            price: self.price,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct TransactionPayload {
     id: u64,
     #[serde(rename = "originalID")]
@@ -669,6 +745,8 @@ pub(crate) struct TransactionPayload {
     revocation_date: Option<String>,
     #[serde(rename = "revocationReason")]
     revocation_reason: Option<String>,
+    #[serde(rename = "revocationType")]
+    revocation_type: Option<String>,
     #[serde(rename = "productType")]
     product_type: Option<String>,
     #[serde(rename = "appAccountToken")]
@@ -679,6 +757,10 @@ pub(crate) struct TransactionPayload {
     price: Option<String>,
     #[serde(rename = "currencyCode")]
     currency_code: Option<String>,
+    #[serde(rename = "billingPlanType")]
+    billing_plan_type: Option<String>,
+    #[serde(rename = "commitmentInfo")]
+    commitment_info: Option<TransactionCommitmentInfoPayload>,
     #[serde(rename = "appTransactionID")]
     app_transaction_id: Option<String>,
     offer: Option<TransactionOfferPayload>,
@@ -716,6 +798,7 @@ impl TransactionPayload {
                     .map(crate::error::VerificationFailure::from_payload),
                 revocation_date: self.revocation_date,
                 revocation_reason: self.revocation_reason.map(RevocationReason::from_raw),
+                revocation_type: self.revocation_type.map(RevocationType::from_raw),
                 product_type: self.product_type.map(ProductType::from_raw),
                 app_account_token: self.app_account_token,
                 environment: self.environment.map(AppStoreEnvironment::from_raw),
@@ -723,6 +806,10 @@ impl TransactionPayload {
                 storefront: self.storefront.map(StorefrontPayload::into_storefront),
                 price: self.price,
                 currency_code: self.currency_code,
+                billing_plan_type: self.billing_plan_type.map(BillingPlanType::from_raw),
+                commitment_info: self
+                    .commitment_info
+                    .map(TransactionCommitmentInfoPayload::into_transaction_commitment_info),
                 app_transaction_id: self.app_transaction_id,
                 offer: self
                     .offer

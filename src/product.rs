@@ -13,7 +13,9 @@ pub use crate::subscription::{
     SubscriptionOffer, SubscriptionOfferType, SubscriptionPaymentMode, SubscriptionPeriod,
     SubscriptionPeriodUnit,
 };
-pub use crate::subscription_info::SubscriptionInfo;
+pub use crate::subscription_info::{
+    BillingPlanType, SubscriptionCommitmentInfo, SubscriptionInfo, SubscriptionPricingTerms,
+};
 
 use crate::purchase_option::PurchaseResultPayload;
 use crate::subscription_info::SubscriptionInfoPayload;

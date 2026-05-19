@@ -84,7 +84,7 @@ pub use purchase_intent::{PurchaseIntent, PurchaseIntentStream};
 pub use purchase_option::{PurchaseOption, PurchaseResult};
 pub use receipt_validator::{AppReceipt, ReceiptValidator};
 pub use refund::{Refund, RefundRequestStatus};
-pub use renewal_info::{ExpirationReason, PriceIncreaseStatus, RenewalInfo};
+pub use renewal_info::{ExpirationReason, PriceIncreaseStatus, RenewalCommitmentInfo, RenewalInfo};
 pub use renewal_state::RenewalState;
 pub use store_context::StoreContext;
 pub use storefront::{Storefront, StorefrontStream};
@@ -92,13 +92,17 @@ pub use subscription::{
     SubscriptionOffer, SubscriptionOfferType, SubscriptionPaymentMode, SubscriptionPeriod,
     SubscriptionPeriodUnit,
 };
-pub use subscription_info::{SubscriptionInfo, SubscriptionStatus};
+pub use subscription_info::{
+    BillingPlanType, SubscriptionCommitmentInfo, SubscriptionInfo, SubscriptionPricingTerms,
+    SubscriptionStatus,
+};
 pub use subscription_status_stream::{
     SubscriptionGroupStatusStream, SubscriptionGroupStatuses, SubscriptionStatusStream,
 };
 pub use transaction::{
-    OfferPaymentMode, OfferType, OwnershipType, RevocationReason, Transaction, TransactionData,
-    TransactionOffer, TransactionReason, TransactionStream,
+    OfferPaymentMode, OfferType, OwnershipType, RevocationReason, RevocationType, Transaction,
+    TransactionCommitmentInfo, TransactionData, TransactionOffer, TransactionReason,
+    TransactionStream,
 };
 pub use verification_result::{VerificationMetadata, VerificationResult};
 pub use window::NSWindowHandle;
@@ -134,7 +138,9 @@ pub mod prelude {
     pub use crate::purchase_option::{PurchaseOption, PurchaseResult};
     pub use crate::receipt_validator::{AppReceipt, ReceiptValidator};
     pub use crate::refund::{Refund, RefundRequestStatus};
-    pub use crate::renewal_info::{ExpirationReason, PriceIncreaseStatus, RenewalInfo};
+    pub use crate::renewal_info::{
+        ExpirationReason, PriceIncreaseStatus, RenewalCommitmentInfo, RenewalInfo,
+    };
     pub use crate::renewal_state::RenewalState;
     pub use crate::store_context::StoreContext;
     pub use crate::storefront::{Storefront, StorefrontStream};
@@ -142,13 +148,17 @@ pub mod prelude {
         SubscriptionOffer, SubscriptionOfferType, SubscriptionPaymentMode, SubscriptionPeriod,
         SubscriptionPeriodUnit,
     };
-    pub use crate::subscription_info::{SubscriptionInfo, SubscriptionStatus};
+    pub use crate::subscription_info::{
+        BillingPlanType, SubscriptionCommitmentInfo, SubscriptionInfo, SubscriptionPricingTerms,
+        SubscriptionStatus,
+    };
     pub use crate::subscription_status_stream::{
         SubscriptionGroupStatusStream, SubscriptionGroupStatuses, SubscriptionStatusStream,
     };
     pub use crate::transaction::{
-        OfferPaymentMode, OfferType, OwnershipType, RevocationReason, Transaction, TransactionData,
-        TransactionOffer, TransactionReason, TransactionStream,
+        OfferPaymentMode, OfferType, OwnershipType, RevocationReason, RevocationType, Transaction,
+        TransactionCommitmentInfo, TransactionData, TransactionOffer, TransactionReason,
+        TransactionStream,
     };
     pub use crate::verification_result::{VerificationMetadata, VerificationResult};
     pub use crate::window::NSWindowHandle;
