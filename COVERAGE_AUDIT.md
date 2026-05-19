@@ -1,17 +1,17 @@
 # storekit-rs coverage audit (vs MacOSX26.5.sdk)
 
-SDK_PUBLIC_SYMBOLS: 95
+SDK_PUBLIC_SYMBOLS: 118
 VERIFIED: 85
 GAPS: 0
-EXEMPT: 10
+EXEMPT: 33
 COVERAGE_PCT: 100.0%
 
 Scope notes:
 - Audited the macOS-reachable StoreKit 2 commerce surface in `StoreKit.framework/Versions/A/Modules/StoreKit.swiftmodule/arm64e-apple-macos.swiftinterface`.
-- Excluded legacy `SK*` StoreKit 1 Objective-C APIs plus protocol-conformance/debug noise (`Equatable`, `Hashable`, `Sendable`, `debugDescription`, etc.).
+- Audited legacy `SK*` StoreKit 1 Objective-C headers as EXEMPT because Apple superseded them with StoreKit 2; protocol-conformance/debug noise (`Equatable`, `Hashable`, `Sendable`, `debugDescription`, etc.) remains excluded from the counts.
 - Rows collapse closely related overloads/properties into one audit unit. Rust-side wrappers sometimes normalize `Date`, `Decimal`, `UUID`, and `Locale.Currency` into strings/bytes; these still count as VERIFIED when the StoreKit data is publicly reachable.
 - Excluded `StoreDownloaderExtension` from the counts because it is a `BackgroundAssets` extension-point protocol rather than a runtime StoreKit 2 commerce API.
-- Refreshed against `MacOSX26.5.sdk`; the 38 new macOS 26.4/26.5 billing-plan, pricing-terms, commitment, and revocation symbols are now wrapped.
+- Refreshed against `MacOSX26.5.sdk`; the 38 new macOS 26.4/26.5 billing-plan, pricing-terms, commitment, and revocation symbols are now wrapped, and 23 legacy StoreKit 1 Objective-C classes are now explicitly tracked as EXEMPT.
 
 ## 🟢 VERIFIED
 | Symbol | Kind | Header | Wrapped by |
@@ -69,6 +69,35 @@ Scope notes:
 None.
 
 ## ⏭️ EXEMPT
+
+### Legacy StoreKit 1 Obj-C API
+| Symbol | Kind | Header | Reason | SDK attribute |
+| --- | --- | --- | --- | --- |
+| `SKPayment` | interface | `SKPayment.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKMutablePayment` | interface | `SKPayment.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKPaymentDiscount` | interface | `SKPaymentDiscount.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKPaymentQueue` | interface | `SKPaymentQueue.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKPaymentQueueDelegate` | protocol | `SKPaymentQueue.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKPaymentTransaction` | interface | `SKPaymentTransaction.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKPaymentTransactionObserver` | protocol | `SKPaymentQueue.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKProduct` | interface | `SKProduct.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKProductDiscount` | interface | `SKProductDiscount.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKProductSubscriptionPeriod` | interface | `SKProduct.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKProductsRequest` | interface | `SKProductsRequest.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKProductsRequestDelegate` | protocol | `SKProductsRequest.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKProductsResponse` | interface | `SKProductsRequest.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKRequest` | interface | `SKRequest.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKRequestDelegate` | protocol | `SKRequest.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKReceiptRefreshRequest` | interface | `SKReceiptRefreshRequest.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKCloudServiceController` | interface | `SKCloudServiceController.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKCloudServiceSetupViewControllerDelegate` | protocol | `SKCloudServiceSetupViewController.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKDownloaderExtension` | protocol | `SKDownloaderExtension.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKStorefront` | interface | `SKStorefront.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKStoreReviewController` | interface | `SKStoreReviewController.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKStoreProductViewControllerDelegate` | protocol | `SKStoreProductViewController.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+| `SKProductStorePromotionController` | interface | `SKProductStorePromotionController.h` | Legacy StoreKit 1 Obj-C API superseded by StoreKit 2 (already wrapped). | `none` |
+
+### Other exemptions
 | Symbol | Kind | Header | Reason | SDK attribute |
 | --- | --- | --- | --- | --- |
 | `Message` | struct | `StoreKit.swiftinterface` | StoreKit marks `Message` unavailable on macOS; the Rust module intentionally returns `NotSupported`. | `@available(macOS, unavailable)` |

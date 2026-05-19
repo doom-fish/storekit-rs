@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.1] - 2026-05-19
+
+- Document 23 legacy StoreKit 1 Obj-C classes as EXEMPT (superseded by StoreKit 2 Swift API already wrapped).
+
 ## [0.4.0] - 2026-05-19
 
 ### Added
