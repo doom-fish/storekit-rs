@@ -1,6 +1,6 @@
 [package]
 name = "storekit-rs"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/doom-fish/storekit-rs"
@@ -9,7 +9,7 @@ description = "Safe Rust bindings for Apple's StoreKit framework — in-app purc
 authors = ["Per Johansson <per@doom.fish>"]
 keywords = ["storekit", "iap", "macos", "subscriptions", "apple"]
 categories = ["api-bindings", "os::macos-apis"]
-rust-version = "1.70"
+rust-version = "1.76"
 readme = "README.md"
 build = "build.rs"
 include = [
