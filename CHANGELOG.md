@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.5] - 2026-05-20
+
+- Added in-`src/` unit tests across src/product.rs, src/renewal_info.rs, src/renewal_state.rs, src/subscription.rs, and src/subscription_info.rs (Tier 2 quality polish), providing fast `cargo test --lib` fail-fast signal alongside the existing integration tests under `tests/`.
+
 ## [0.4.4] - 2026-05-20
 
 - Clippy hygiene sweep: cleared all `-D warnings` lints across the crate. No public API change.

@@ -320,3 +320,127 @@ impl SubscriptionStatusPayload {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use crate::subscription::{
+        SubscriptionOfferType, SubscriptionPaymentMode, SubscriptionPeriodUnit,
+    };
+
+    #[test]
+    fn billing_plan_types_round_trip_known_values() {
+        let cases = [
+            ("monthly", BillingPlanType::Monthly),
+            ("upFront", BillingPlanType::UpFront),
+        ];
+
+        for (raw, billing_plan_type) in cases {
+            assert_eq!(BillingPlanType::from_raw(raw.to_owned()), billing_plan_type);
+            assert_eq!(billing_plan_type.as_str(), raw);
+        }
+    }
+
+    #[test]
+    fn unknown_billing_plan_type_is_preserved() {
+        let billing_plan_type = BillingPlanType::from_raw("seasonal".to_owned());
+
+        assert_eq!(billing_plan_type, BillingPlanType::Unknown("seasonal".into()));
+        assert_eq!(billing_plan_type.as_str(), "seasonal");
+    }
+
+    #[test]
+    fn billing_plan_type_serializes_as_raw_string() {
+        assert_eq!(
+            serde_json::to_value(BillingPlanType::Monthly).expect("serialize monthly plan"),
+            json!("monthly")
+        );
+        assert_eq!(
+            serde_json::to_value(BillingPlanType::Unknown("custom".into()))
+                .expect("serialize custom plan"),
+            json!("custom")
+        );
+    }
+
+    #[test]
+    fn subscription_pricing_terms_payload_converts_nested_fields() {
+        let payload: SubscriptionPricingTermsPayload = serde_json::from_value(json!({
+            "billingPrice": "59.99",
+            "billingDisplayPrice": "$59.99",
+            "billingPeriod": {
+                "unit": "year",
+                "value": 1
+            },
+            "billingPlanType": "upFront",
+            "commitmentInfo": {
+                "price": "59.99",
+                "displayPrice": "$59.99",
+                "period": {
+                    "unit": "year",
+                    "value": 1
+                }
+            },
+            "subscriptionOffers": [{
+                "id": "winback",
+                "type": "winBack",
+                "price": "29.99",
+                "displayPrice": "$29.99",
+                "period": {
+                    "unit": "month",
+                    "value": 3
+                },
+                "periodCount": 1,
+                "paymentMode": "payUpFront"
+            }]
+        }))
+        .expect("deserialize pricing terms payload");
+        let pricing_terms = payload.into_subscription_pricing_terms();
+
+        assert_eq!(pricing_terms.billing_plan_type, BillingPlanType::UpFront);
+        assert_eq!(
+            pricing_terms.billing_period,
+            SubscriptionPeriod {
+                unit: SubscriptionPeriodUnit::Year,
+                value: 1,
+            }
+        );
+        assert_eq!(pricing_terms.commitment_info.price, "59.99");
+        let offer = pricing_terms
+            .subscription_offers
+            .first()
+            .expect("one subscription offer");
+        assert_eq!(offer.offer_type, SubscriptionOfferType::WinBack);
+        assert_eq!(offer.payment_mode, SubscriptionPaymentMode::PayUpFront);
+    }
+
+    #[test]
+    fn subscription_info_payload_converts_optional_fields() {
+        let payload: SubscriptionInfoPayload = serde_json::from_value(json!({
+            "promotionalOffers": [],
+            "winBackOffers": [],
+            "subscriptionGroupID": "group-1",
+            "subscriptionPeriod": {
+                "unit": "month",
+                "value": 1
+            },
+            "pricingTerms": [],
+            "groupLevel": 2,
+            "groupDisplayName": "Pro"
+        }))
+        .expect("deserialize subscription info payload");
+        let info = payload.into_subscription_info();
+
+        assert_eq!(info.subscription_group_id, "group-1");
+        assert_eq!(
+            info.subscription_period,
+            SubscriptionPeriod {
+                unit: SubscriptionPeriodUnit::Month,
+                value: 1,
+            }
+        );
+        assert_eq!(info.group_level, Some(2));
+        assert_eq!(info.group_display_name.as_deref(), Some("Pro"));
+        assert!(info.pricing_terms.is_empty());
+    }
+}

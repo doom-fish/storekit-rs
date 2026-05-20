@@ -40,3 +40,32 @@ impl RenewalState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn known_renewal_states_round_trip() {
+        let cases = [
+            ("subscribed", RenewalState::Subscribed),
+            ("expired", RenewalState::Expired),
+            ("inBillingRetryPeriod", RenewalState::InBillingRetryPeriod),
+            ("inGracePeriod", RenewalState::InGracePeriod),
+            ("revoked", RenewalState::Revoked),
+        ];
+
+        for (raw, state) in cases {
+            assert_eq!(RenewalState::from_raw(raw), state);
+            assert_eq!(state.as_str(), raw);
+        }
+    }
+
+    #[test]
+    fn unknown_renewal_state_is_preserved() {
+        let state = RenewalState::from_raw("paused");
+
+        assert_eq!(state, RenewalState::Unknown("paused".into()));
+        assert_eq!(state.as_str(), "paused");
+    }
+}

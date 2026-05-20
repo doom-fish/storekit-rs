@@ -177,3 +177,109 @@ impl SubscriptionOfferPayload {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn subscription_period_units_round_trip_known_values() {
+        let cases = [
+            ("day", SubscriptionPeriodUnit::Day),
+            ("week", SubscriptionPeriodUnit::Week),
+            ("month", SubscriptionPeriodUnit::Month),
+            ("year", SubscriptionPeriodUnit::Year),
+        ];
+
+        for (raw, unit) in cases {
+            assert_eq!(SubscriptionPeriodUnit::from_raw(raw.to_owned()), unit);
+            assert_eq!(unit.as_str(), raw);
+        }
+    }
+
+    #[test]
+    fn unknown_subscription_period_unit_is_preserved() {
+        let unit = SubscriptionPeriodUnit::from_raw("fortnight".to_owned());
+
+        assert_eq!(unit, SubscriptionPeriodUnit::Unknown("fortnight".into()));
+        assert_eq!(unit.as_str(), "fortnight");
+    }
+
+    #[test]
+    fn subscription_offer_types_round_trip_known_values() {
+        let cases = [
+            ("introductory", SubscriptionOfferType::Introductory),
+            ("promotional", SubscriptionOfferType::Promotional),
+            ("winBack", SubscriptionOfferType::WinBack),
+        ];
+
+        for (raw, offer_type) in cases {
+            assert_eq!(SubscriptionOfferType::from_raw(raw.to_owned()), offer_type);
+            assert_eq!(offer_type.as_str(), raw);
+        }
+    }
+
+    #[test]
+    fn subscription_payment_modes_round_trip_known_values() {
+        let cases = [
+            ("payAsYouGo", SubscriptionPaymentMode::PayAsYouGo),
+            ("payUpFront", SubscriptionPaymentMode::PayUpFront),
+            ("freeTrial", SubscriptionPaymentMode::FreeTrial),
+        ];
+
+        for (raw, payment_mode) in cases {
+            assert_eq!(
+                SubscriptionPaymentMode::from_raw(raw.to_owned()),
+                payment_mode
+            );
+            assert_eq!(payment_mode.as_str(), raw);
+        }
+    }
+
+    #[test]
+    fn subscription_period_payload_converts_to_subscription_period() {
+        let period = SubscriptionPeriodPayload {
+            unit: "month".into(),
+            value: 3,
+        }
+        .into_subscription_period();
+
+        assert_eq!(
+            period,
+            SubscriptionPeriod {
+                unit: SubscriptionPeriodUnit::Month,
+                value: 3,
+            }
+        );
+    }
+
+    #[test]
+    fn subscription_offer_payload_converts_to_subscription_offer() {
+        let offer = SubscriptionOfferPayload {
+            id: Some("intro".into()),
+            offer_type: "introductory".into(),
+            price: "4.99".into(),
+            display_price: "$4.99".into(),
+            period: SubscriptionPeriodPayload {
+                unit: "week".into(),
+                value: 1,
+            },
+            period_count: 2,
+            payment_mode: "freeTrial".into(),
+        }
+        .into_subscription_offer();
+
+        assert_eq!(offer.id.as_deref(), Some("intro"));
+        assert_eq!(offer.offer_type, SubscriptionOfferType::Introductory);
+        assert_eq!(offer.display_price, "$4.99");
+        assert_eq!(
+            offer.period,
+            SubscriptionPeriod {
+                unit: SubscriptionPeriodUnit::Week,
+                value: 1,
+            }
+        );
+        assert_eq!(offer.period_count, 2);
+        assert_eq!(offer.payment_mode, SubscriptionPaymentMode::FreeTrial);
+    }
+}

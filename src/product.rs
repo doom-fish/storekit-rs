@@ -208,3 +208,58 @@ impl ProductPayload {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn known_product_types_round_trip() {
+        let cases = [
+            ("consumable", ProductType::Consumable),
+            ("nonConsumable", ProductType::NonConsumable),
+            ("autoRenewable", ProductType::AutoRenewable),
+            ("nonRenewing", ProductType::NonRenewing),
+        ];
+
+        for (raw, product_type) in cases {
+            assert_eq!(ProductType::from_raw(raw.to_owned()), product_type);
+            assert_eq!(product_type.as_str(), raw);
+        }
+    }
+
+    #[test]
+    fn unknown_product_type_is_preserved() {
+        let product_type = ProductType::from_raw("bundle".to_owned());
+
+        assert_eq!(product_type, ProductType::Unknown("bundle".into()));
+        assert_eq!(product_type.as_str(), "bundle");
+    }
+
+    #[test]
+    fn product_payload_converts_basic_fields() {
+        let product = ProductPayload {
+            id: "pro.monthly".into(),
+            display_name: "Pro Monthly".into(),
+            description: "Monthly plan".into(),
+            price: "9.99".into(),
+            display_price: "$9.99".into(),
+            product_type: "autoRenewable".into(),
+            is_family_shareable: true,
+            subscription: None,
+            currency_code: Some("USD".into()),
+            price_locale_identifier: Some("en_US".into()),
+            json_representation_base64: "AQID".into(),
+        }
+        .into_product()
+        .expect("convert product payload");
+
+        assert_eq!(product.id, "pro.monthly");
+        assert_eq!(product.display_name, "Pro Monthly");
+        assert_eq!(product.product_type, ProductType::AutoRenewable);
+        assert!(product.is_family_shareable);
+        assert_eq!(product.currency_code.as_deref(), Some("USD"));
+        assert_eq!(product.price_locale_identifier.as_deref(), Some("en_US"));
+        assert_eq!(product.json_representation, vec![1, 2, 3]);
+    }
+}

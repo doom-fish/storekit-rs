@@ -231,3 +231,56 @@ impl RenewalInfoPayload {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expiration_reasons_round_trip_known_values() {
+        let cases = [
+            ("autoRenewDisabled", ExpirationReason::AutoRenewDisabled),
+            ("billingError", ExpirationReason::BillingError),
+            (
+                "didNotConsentToPriceIncrease",
+                ExpirationReason::DidNotConsentToPriceIncrease,
+            ),
+            ("productUnavailable", ExpirationReason::ProductUnavailable),
+        ];
+
+        for (raw, reason) in cases {
+            assert_eq!(ExpirationReason::from_raw(raw.to_owned()), reason);
+            assert_eq!(reason.as_str(), raw);
+        }
+    }
+
+    #[test]
+    fn unknown_expiration_reason_is_preserved() {
+        let reason = ExpirationReason::from_raw("paused".to_owned());
+
+        assert_eq!(reason, ExpirationReason::Unknown("paused".into()));
+        assert_eq!(reason.as_str(), "paused");
+    }
+
+    #[test]
+    fn price_increase_statuses_round_trip_known_values() {
+        let cases = [
+            ("noIncreasePending", PriceIncreaseStatus::NoIncreasePending),
+            ("pending", PriceIncreaseStatus::Pending),
+            ("agreed", PriceIncreaseStatus::Agreed),
+        ];
+
+        for (raw, status) in cases {
+            assert_eq!(PriceIncreaseStatus::from_raw(raw.to_owned()), status);
+            assert_eq!(status.as_str(), raw);
+        }
+    }
+
+    #[test]
+    fn unknown_price_increase_status_is_preserved() {
+        let status = PriceIncreaseStatus::from_raw("manualReview".to_owned());
+
+        assert_eq!(status, PriceIncreaseStatus::Unknown("manualReview".into()));
+        assert_eq!(status.as_str(), "manualReview");
+    }
+}
