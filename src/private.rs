@@ -1,7 +1,7 @@
 #![allow(clippy::missing_errors_doc)]
 
 use core::ffi::c_char;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::time::Duration;
 
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
@@ -29,14 +29,7 @@ pub fn json_cstring<T: Serialize + ?Sized>(
 }
 
 pub unsafe fn take_string(ptr: *mut c_char) -> Option<String> {
-    if ptr.is_null() {
-        return None;
-    }
-    // SAFETY: caller guarantees ptr is a valid, NUL-terminated C string.
-    let string = CStr::from_ptr(ptr).to_string_lossy().into_owned();
-    // SAFETY: ptr was allocated by the Swift bridge (sk_string_free is the matching free).
-    ffi::sk_string_free(ptr);
-    Some(string)
+    doom_fish_utils::ffi_string::take_owned_cstring_c(ptr, |p| ffi::sk_string_free(p))
 }
 
 pub unsafe fn parse_json_ptr<T: DeserializeOwned>(
