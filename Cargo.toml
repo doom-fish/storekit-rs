@@ -1,6 +1,6 @@
 [package]
 name = "storekit-rs"
-version = "0.4.3"
+version = "0.4.4"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/doom-fish/storekit-rs"
@@ -58,6 +58,18 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [badges]
 maintenance = { status = "actively-developed" }
+
+[[example]]
+name = "20_async_products"
+required-features = ["async"]
+
+[[example]]
+name = "21_async_app_transaction"
+required-features = ["async"]
+
+[[example]]
+name = "22_async_storefront"
+required-features = ["async"]
 
 [profile.release]
 debug = "full"
