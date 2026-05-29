@@ -15,7 +15,6 @@ let package = Package(
     targets: [
         .target(
             name: "StoreKitBridge",
-            path: "Sources/StoreKitBridge",
-            publicHeadersPath: "include")
+            path: "Sources/StoreKitBridge")
     ]
 )
