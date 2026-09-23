@@ -129,6 +129,77 @@ public func sk_product_purchase_async(
     }
 }
 
+@_cdecl("sk_product_purchase_in_window_async")
+public func sk_product_purchase_in_window_async(
+    _ productID: UnsafePointer<CChar>?,
+    _ window: UnsafeMutableRawPointer?,
+    _ optionsJSON: UnsafePointer<CChar>?,
+    _ cb: SKAsyncCallback,
+    _ ctx: UnsafeMutableRawPointer?
+) {
+    guard #available(macOS 15.2, *) else {
+        skDeliverAsync(
+            cb,
+            ctx,
+            .failure(SKBridgeError.notSupported("Product.purchase(confirmIn:options:) requires macOS 15.2+"))
+        )
+        return
+    }
+    guard let productID else {
+        skDeliverAsync(cb, ctx, .failure(SKBridgeError.invalidArgument("missing product identifier")))
+        return
+    }
+    let idStr = String(cString: productID)
+    let optionPayloads: [SKPurchaseOptionPayload]
+    let confirmedWindow: NSWindow
+    do {
+        optionPayloads = try skDecodeJSONIfPresent(optionsJSON, as: [SKPurchaseOptionPayload].self) ?? []
+        confirmedWindow = try skBorrowWindow(window, context: "Product.purchase(confirmIn:options:)")
+    } catch {
+        skDeliverAsync(cb, ctx, .failure(error))
+        return
+    }
+    skRunMainActorAsync(cb, ctx) {
+        let product = try await skSingleProduct(for: idStr)
+        let options = try skBuildPurchaseOptions(from: optionPayloads, product: product)
+        return try skPurchaseOutcome(
+            from: try await product.purchase(confirmIn: confirmedWindow, options: options)
+        )
+    }
+}
+
+@_cdecl("sk_app_store_present_merchandising_async")
+public func sk_app_store_present_merchandising_async(
+    _ kindJSON: UnsafePointer<CChar>?,
+    _ window: UnsafeMutableRawPointer?,
+    _ cb: SKAsyncCallback,
+    _ ctx: UnsafeMutableRawPointer?
+) {
+    guard #available(macOS 26.2, *) else {
+        skDeliverAsync(
+            cb,
+            ctx,
+            .failure(SKBridgeError.notSupported("AppStore.presentMerchandising(_:from:) requires macOS 26.2+"))
+        )
+        return
+    }
+    let merchandisingKind: AppStoreMerchandisingKind
+    let confirmedWindow: NSWindow
+    do {
+        let payload = try skDecodeJSON(kindJSON, as: SKAppStoreMerchandisingKindPayload.self)
+        merchandisingKind = try skBuildAppStoreMerchandisingKind(from: payload)
+        confirmedWindow = try skBorrowWindow(window, context: "AppStore.presentMerchandising(_:from:)")
+    } catch {
+        skDeliverAsync(cb, ctx, .failure(error))
+        return
+    }
+    skRunMainActorAsync(cb, ctx) {
+        try skMerchandisingOutcome(
+            from: try await AppStore.presentMerchandising(merchandisingKind, from: confirmedWindow)
+        )
+    }
+}
+
 // MARK: - AppStore.requestReview() async
 //
 // Note: AppStore.requestReview(in:) requires a live NSViewController-backed

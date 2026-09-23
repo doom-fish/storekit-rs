@@ -13,8 +13,27 @@
 mod async_tests {
     use storekit::async_api::{
         AsyncAppStore, AsyncAppTransaction, AsyncProducts, AsyncPurchase, AsyncStorefront,
+        PresentMerchandisingFuture, PurchaseFuture,
     };
     use storekit::error::StoreKitError;
+    use storekit::{AppStoreMerchandisingKind, NSWindowHandle, PurchaseOption};
+
+    #[test]
+    fn window_based_ui_calls_return_sendable_futures() {
+        fn assert_send<T: Send>() {}
+        assert_send::<PurchaseFuture>();
+        assert_send::<PresentMerchandisingFuture>();
+
+        let _: fn(
+            &str,
+            &NSWindowHandle,
+            &[PurchaseOption],
+        ) -> Result<PurchaseFuture, StoreKitError> = AsyncPurchase::buy_in_window;
+        let _: fn(
+            &AppStoreMerchandisingKind,
+            &NSWindowHandle,
+        ) -> Result<PresentMerchandisingFuture, StoreKitError> = AsyncAppStore::present_merchandising;
+    }
 
     // -----------------------------------------------------------------------
     // AsyncProducts

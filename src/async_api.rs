@@ -55,6 +55,10 @@ use std::task::{Context, Poll};
 use doom_fish_utils::completion::{AsyncCompletion, AsyncCompletionFuture};
 use doom_fish_utils::panic_safe::catch_user_panic;
 
+use crate::advanced_commerce::{
+    AppStoreMerchandisingKind, AppStoreMerchandisingPresentationResult,
+    AppStoreMerchandisingPresentationResultPayload,
+};
 use crate::app_transaction::{AppTransaction, AppTransactionPayload};
 use crate::error::{from_status_message, StoreKitError};
 use crate::ffi;
@@ -64,6 +68,7 @@ use crate::purchase_option::{PurchaseOption, PurchaseResult, PurchaseResultPaylo
 use crate::storefront::{Storefront, StorefrontPayload};
 use crate::transaction::TransactionHandle;
 use crate::verification_result::{VerificationResult, VerificationResultPayload};
+use crate::window::NSWindowHandle;
 
 // ============================================================================
 // Internal helpers
@@ -255,6 +260,26 @@ impl AsyncPurchase {
         unsafe { ffi::sk_product_purchase_async(id.as_ptr(), opts.as_ptr(), bridge_callback, ctx) }
         Ok(PurchaseFuture { inner: future })
     }
+
+    pub fn buy_in_window(
+        product_id: &str,
+        window: &NSWindowHandle,
+        options: &[PurchaseOption],
+    ) -> Result<PurchaseFuture, StoreKitError> {
+        let id = cstring_from_str(product_id, "product id")?;
+        let opts = json_cstring(options, "purchase options")?;
+        let (future, ctx) = AsyncCompletion::create();
+        unsafe {
+            ffi::sk_product_purchase_in_window_async(
+                id.as_ptr(),
+                window.as_raw(),
+                opts.as_ptr(),
+                bridge_callback,
+                ctx,
+            );
+        }
+        Ok(PurchaseFuture { inner: future })
+    }
 }
 
 // ============================================================================
@@ -305,6 +330,32 @@ impl Future for ShowManageSubscriptionsFuture {
     }
 }
 
+pub struct PresentMerchandisingFuture {
+    inner: AsyncCompletionFuture<BridgeReply>,
+}
+
+impl std::fmt::Debug for PresentMerchandisingFuture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PresentMerchandisingFuture")
+            .finish_non_exhaustive()
+    }
+}
+
+impl Future for PresentMerchandisingFuture {
+    type Output = Result<AppStoreMerchandisingPresentationResult, StoreKitError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.inner).poll(cx).map(|reply| {
+            let (json, transaction) = reply_result(reply)?;
+            parse_json_str::<AppStoreMerchandisingPresentationResultPayload>(
+                &reply_json(json, "App Store merchandising presentation result")?,
+                "App Store merchandising presentation result",
+            )?
+            .into_result(transaction)
+        })
+    }
+}
+
 /// Async wrapper for `AppStore` UI APIs.
 ///
 /// # Notes
@@ -348,6 +399,23 @@ impl AsyncAppStore {
         let (future, ctx) = AsyncCompletion::create();
         unsafe { ffi::sk_app_store_show_manage_subscriptions_async(bridge_callback, ctx) }
         ShowManageSubscriptionsFuture { inner: future }
+    }
+
+    pub fn present_merchandising(
+        kind: &AppStoreMerchandisingKind,
+        window: &NSWindowHandle,
+    ) -> Result<PresentMerchandisingFuture, StoreKitError> {
+        let kind_json = json_cstring(kind, "App Store merchandising kind")?;
+        let (future, ctx) = AsyncCompletion::create();
+        unsafe {
+            ffi::sk_app_store_present_merchandising_async(
+                kind_json.as_ptr(),
+                window.as_raw(),
+                bridge_callback,
+                ctx,
+            );
+        }
+        Ok(PresentMerchandisingFuture { inner: future })
     }
 }
 

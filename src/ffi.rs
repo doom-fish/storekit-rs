@@ -258,6 +258,23 @@ extern "C" {
     );
 
     #[cfg(feature = "async")]
+    pub fn sk_product_purchase_in_window_async(
+        product_id: *const c_char,
+        window: *mut c_void,
+        options_json: *const c_char,
+        cb: AsyncCallback,
+        ctx: *mut c_void,
+    );
+
+    #[cfg(feature = "async")]
+    pub fn sk_app_store_present_merchandising_async(
+        kind_json: *const c_char,
+        window: *mut c_void,
+        cb: AsyncCallback,
+        ctx: *mut c_void,
+    );
+
+    #[cfg(feature = "async")]
     pub fn sk_app_store_request_review_async(cb: AsyncCallback, ctx: *mut c_void);
 
     #[cfg(feature = "async")]
