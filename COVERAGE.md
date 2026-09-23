@@ -1,6 +1,6 @@
-# StoreKit 2 coverage audit (v0.2.1)
+# StoreKit 2 coverage audit (v0.5.0)
 
-Scope: `StoreKit.framework` on macOS, focused on the StoreKit 2 Swift API surface used by this crate.
+Scope: `StoreKit.framework` on macOS, focused on the StoreKit 2 Swift API surface used by this crate. A ✅ row means a wrapper exists and reaches the StoreKit API; it isn't a symbol-by-symbol count, and it doesn't cover the StoreKit additions in the macOS 27.0 SDK (see [Not covered](#not-covered)).
 
 Legend:
 
@@ -13,8 +13,8 @@ Legend:
 | API | Status | Notes |
 | --- | --- | --- |
 | `Product.products(for:)` | ✅ | `Product::products_for(...)` |
-| `Product.purchase(options:)` | ✅ | `Product::purchase(...)` |
-| `Product.purchase(confirmIn:options:)` | ✅ | `Product::purchase_in_window(...)` via caller-owned `NSWindowHandle` |
+| `Product.purchase(options:)` | ✅ | `Product::purchase(...)` blocks a worker thread and returns `NotSupported` on the main thread; `AsyncPurchase::buy(...)` doesn't block |
+| `Product.purchase(confirmIn:options:)` | ✅ | `Product::purchase_in_window(...)` and `AsyncPurchase::buy_in_window(...)` via caller-owned `NSWindowHandle` |
 | `Product.latestTransaction` | ✅ | `Product::latest_transaction()` |
 | `Product.currentEntitlements` / filtered entitlements | ✅ | `Product::current_entitlements()` via filtered transaction stream |
 | `Product.id`, `type`, `displayName`, `description`, `price`, `displayPrice` | ✅ | Exposed on `Product` |
@@ -29,7 +29,7 @@ Legend:
 | --- | --- | --- |
 | `Transaction.all` | ✅ | `Transaction::all()` |
 | `Transaction.currentEntitlements` | ✅ | `Transaction::current_entitlements()` |
-| `Transaction.updates` | ✅ | `Transaction::updates()` |
+| `Transaction.updates` | ✅ | `Transaction::updates()`; `next()` waits for the next update, `next_timeout()` returns `TimedOut` and keeps the stream open |
 | `Transaction.unfinished` | ✅ | `Transaction::unfinished()` |
 | `Transaction.latest(for:)` | ✅ | `Transaction::latest_for(...)` |
 | `Transaction.currentEntitlement(for:)` | ✅ | `Transaction::current_entitlement_for(...)` |
@@ -39,7 +39,7 @@ Legend:
 | `VerificationResult<Transaction>.payloadValue` equivalent | ✅ | `VerificationResult::payload_value()` + `Transaction::verify()` |
 | Core transaction fields (`id`, `originalID`, dates, quantity, ownership, bundle, JWS, signed date`) | ✅ | Exposed on `TransactionData` |
 | `environment`, `reason`, `storefront`, `offer`, `currencyCode`, `appTransactionID` | ✅ | Exposed when available; absent on older runtimes remain `None` |
-| `beginRefundRequest(for:in:)` | 🟡 | Headless-safe wrapper auto-discovers the first `NSViewController`; returns `NotSupported` without one |
+| `beginRefundRequest(for:in:)` | 🟡 | Uses the key window's `NSViewController` and returns `NotSupported` without one; needs a running main run loop and returns `NotSupported` on the main thread |
 | `advancedCommerceInfo` | ✅ | Exposed on `Transaction` plus `VerificationResult<Transaction>::advanced_commerce_info()` |
 
 ## AppStore
@@ -51,10 +51,10 @@ Legend:
 | `AppStore.sync()` | ✅ | `AppStore::sync()` |
 | `AppStore.requestReview(in:)` | ✅ | `AppStore::request_review()`; requires discovered `NSViewController` |
 | `AppStore.presentOfferCodeRedeemSheet(from:)` | ✅ | `AppStore::present_offer_code_redeem_sheet()`; requires discovered `NSViewController` |
-| `AppStore.showManageSubscriptions(...)` | ⏭️ | Scene-based API remains unavailable on macOS StoreKit |
-| `AppStore.presentMerchandising(...)` | ✅ | `AppStore::present_merchandising(...)` via caller-owned `NSWindowHandle` |
+| `AppStore.showManageSubscriptions(...)` | ⏭️ | Scene-based API that isn't in the macOS StoreKit SDK; `AppStore::show_manage_subscriptions()` and `AsyncAppStore::show_manage_subscriptions()` always return `NotSupported` |
+| `AppStore.presentMerchandising(...)` | ✅ | `AppStore::present_merchandising(...)` and `AsyncAppStore::present_merchandising(...)` via caller-owned `NSWindowHandle` |
 | `AppStore.ageRatingCode` | ✅ | `AppStore::age_rating_code()` |
-| `AdvancedCommerceProduct` / advanced-commerce purchases | ✅ | `AdvancedCommerceProduct::{new,purchase,purchase_in_window,latest_transaction}` |
+| `AdvancedCommerceProduct` / advanced-commerce purchases | ✅ | `AdvancedCommerceProduct::{new,purchase_in_window,latest_transaction,all_transactions,current_entitlements}` |
 
 ## Storefront
 
@@ -123,12 +123,14 @@ Legend:
 | `winBackOffer(_:)` | ✅ | `WinBackOffer` via offer-id lookup on the fetched product |
 | `onStorefrontChange(...)` | ✅ | `PurchaseOption::OnStorefrontChange` |
 
+Before 0.5.0 these rows were marked ✅ while most options couldn't work: struct-variant fields were sent in snake_case, so `AppAccountToken`, `CustomNumber`, `CustomBool`, `CustomData`, both promotional offers, `IntroductoryOfferEligibility` and `WinBackOffer` failed, and `SimulatesAskToBuyInSandbox` and `OnStorefrontChange` ignored their value.
+
 ## ExternalPurchase
 
 | API | Status | Notes |
 | --- | --- | --- |
 | `ExternalPurchase` | ✅ | `ExternalPurchase::{can_present,present_notice_sheet}` |
-| `ExternalPurchaseLink` | ✅ | `ExternalPurchaseLink::{can_open,eligible_urls,open_url}` |
+| `ExternalPurchaseLink` | ✅ | `ExternalPurchaseLink::{can_open,eligible_urls,open,open_url}` |
 | `ExternalPurchaseCustomLink` | ✅ | `ExternalPurchaseCustomLink::{is_eligible,show_notice,token}` |
 
 ## VerificationResult
@@ -156,15 +158,15 @@ Legend:
 
 | API | Status | Notes |
 | --- | --- | --- |
-| `Transaction.beginRefundRequest(for:in:)` | 🟡 | Headless-safe wrapper uses the first discovered `NSViewController` and otherwise returns `NotSupported` |
+| `Transaction.beginRefundRequest(for:in:)` | 🟡 | Uses the key window's `NSViewController` and returns `NotSupported` without one; needs a running main run loop and returns `NotSupported` on the main thread |
 | `RefundRequestStatus.success` / `userCancelled` | ✅ | `RefundRequestStatus` |
 
 ## Typed framework errors
 
 | API | Status | Notes |
 | --- | --- | --- |
-| `StoreKit.StoreKitError` | ✅ | `StoreKitError::typed()` returns `TypedStoreKitError::StoreKitApi` |
-| `Product.PurchaseError` | ✅ | `StoreKitError::typed()` returns `TypedStoreKitError::ProductPurchase` |
+| `StoreKit.StoreKitError` | ✅ | `StoreKitError::typed()` returns `TypedStoreKitError::StoreKit` |
+| `Product.PurchaseError` | 🟡 | `StoreKitError::typed()` returns `TypedStoreKitError::Purchase`; `paymentMethodBindingConfigurationRequired` (macOS 26.5) is reported as `ProductPurchaseErrorCode::Other("unknown")` |
 | `Transaction.RefundRequestError` | ✅ | `StoreKitError::typed()` returns `TypedStoreKitError::RefundRequest` |
 | `InvalidRequestError` | ✅ | `StoreKitError::typed()` returns `TypedStoreKitError::InvalidRequest` |
 
@@ -189,3 +191,8 @@ Legend:
 | Bundle / executable / receipt summary | ✅ | `StoreContext::current()` |
 | Payment and device-verification convenience helpers | ✅ | Delegates to `AppStore` |
 | Product, entitlement, storefront, receipt convenience wrappers | ✅ | Delegates to the corresponding modules |
+
+## Not covered
+
+- The StoreKit additions in the macOS 27.0 SDK, such as `AppTransactions`, `BundledSubscription`, `Partner`, `RedeemOption`, `StoreType`, the `Transaction.bundle*` properties, `previousOriginalTransactionID` and `willUnbundle`. The crate builds against the macOS 26.x SDK surface.
+- `Product.PurchaseError.paymentMethodBindingConfigurationRequired` (macOS 26.5 SDK); see Typed framework errors above.

@@ -1,5 +1,7 @@
 # storekit-rs coverage audit v2 (vs MacOSX26.2.sdk)
 
+Superseded by `COVERAGE_AUDIT.md` (MacOSX26.5.sdk) and kept for history. Its figures describe the crate as it was audited then, and share the limits noted there: they count collapsed rows, and VERIFIED `PurchaseOption` rows did not work before 0.5.0.
+
 SDK_PUBLIC_SYMBOLS: 57
 VERIFIED: 47
 GAPS: 0

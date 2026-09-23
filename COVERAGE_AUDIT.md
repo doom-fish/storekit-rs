@@ -1,10 +1,10 @@
 # storekit-rs coverage audit (vs MacOSX26.5.sdk)
 
-SDK_PUBLIC_SYMBOLS: 118
+SDK_PUBLIC_SYMBOLS: 119
 VERIFIED: 85
-GAPS: 0
+GAPS: 1
 EXEMPT: 33
-COVERAGE_PCT: 100.0%
+COVERAGE_PCT: 98.8%
 
 Scope notes:
 - Audited the macOS-reachable StoreKit 2 commerce surface in `StoreKit.framework/Versions/A/Modules/StoreKit.swiftmodule/arm64e-apple-macos.swiftinterface`.
@@ -12,6 +12,8 @@ Scope notes:
 - Rows collapse closely related overloads/properties into one audit unit. Rust-side wrappers sometimes normalize `Date`, `Decimal`, `UUID`, and `Locale.Currency` into strings/bytes; these still count as VERIFIED when the StoreKit data is publicly reachable.
 - Excluded `StoreDownloaderExtension` from the counts because it is a `BackgroundAssets` extension-point protocol rather than a runtime StoreKit 2 commerce API.
 - Refreshed against `MacOSX26.5.sdk`; the 38 new macOS 26.4/26.5 billing-plan, pricing-terms, commitment, and revocation symbols are now wrapped, and 23 legacy StoreKit 1 Objective-C classes are now explicitly tracked as EXEMPT.
+- What the numbers measure: collapsed audit rows over the StoreKit 2 surface this audit chose to track, not individual SDK symbols. VERIFIED means a wrapper exists and reaches the StoreKit API. It did not mean the wrapper worked: before 0.5.0 the `Product.PurchaseOption` rows were VERIFIED while most options were sent under field names the bridge could not decode.
+- The StoreKit additions in `MacOSX27.0.sdk` (`AppTransactions`, `BundledSubscription`, `Partner`, `RedeemOption`, `StoreType`, `Transaction.bundle*`, `previousOriginalTransactionID`, `willUnbundle`) were not audited and are not wrapped.
 
 ## 🟢 VERIFIED
 | Symbol | Kind | Header | Wrapped by |
@@ -66,7 +68,9 @@ Scope notes:
 | `Typed StoreKit error enums` | enum/struct family | `StoreKit.swiftinterface` | `StoreKitError::typed()` + typed `StoreKit`, purchase, refund-request, and invalid-request errors |
 
 ## 🔴 GAPS
-None.
+| Symbol | Kind | Header | Notes |
+| --- | --- | --- | --- |
+| `Product.PurchaseError.paymentMethodBindingConfigurationRequired` | enum case (macOS 26.5) | `StoreKit.swiftinterface` | Reported as `ProductPurchaseErrorCode::Other("unknown")` |
 
 ## ⏭️ EXEMPT
 

@@ -2,7 +2,7 @@
 //!
 //! This module requires the **`async`** Cargo feature:
 //! ```toml
-//! storekit-rs = { version = "0.3", features = ["async"] }
+//! storekit-rs = { version = "0.5", features = ["async"] }
 //! ```
 //!
 //! Every public type is an executor-agnostic [`Future`] backed by a
