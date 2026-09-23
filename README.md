@@ -135,7 +135,7 @@ fn main() {
 }
 ```
 
-The following async types are available: [`AsyncProducts`], [`AsyncPurchase`], [`AsyncAppStore`], [`AsyncAppTransaction`], [`AsyncStorefront`].
+The following async types are available: `AsyncProducts`, `AsyncPurchase`, `AsyncAppStore`, `AsyncAppTransaction` and `AsyncStorefront`.
 
 ## Notes
 
