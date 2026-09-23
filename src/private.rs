@@ -41,11 +41,26 @@ pub unsafe fn parse_json_ptr<T: DeserializeOwned>(
     let json = take_string(ptr).ok_or_else(|| {
         StoreKitError::InvalidArgument(format!("missing JSON payload for {context}"))
     })?;
-    serde_json::from_str(&json).map_err(|error| {
-        StoreKitError::InvalidArgument(format!(
-            "failed to parse {context} JSON: {error}; payload={json}"
-        ))
-    })
+    parse_json_str(&json, context)
+}
+
+pub fn parse_json_str<T: DeserializeOwned>(json: &str, context: &str) -> Result<T, StoreKitError> {
+    serde_json::from_str(json).map_err(|error| json_error(&error, context))
+}
+
+pub fn json_error(error: &serde_json::Error, context: &str) -> StoreKitError {
+    let message = error.to_string();
+    let detail = if message.starts_with("missing field") || message.starts_with("duplicate field") {
+        message
+    } else {
+        format!(
+            "{:?} error at line {} column {}",
+            error.classify(),
+            error.line(),
+            error.column()
+        )
+    };
+    StoreKitError::InvalidArgument(format!("failed to parse {context} JSON: {detail}"))
 }
 
 pub unsafe fn parse_optional_json_ptr<T: DeserializeOwned>(
@@ -80,4 +95,45 @@ pub fn decode_base64_urlsafe(value: &str, context: &str) -> Result<Vec<u8>, Stor
     URL_SAFE_NO_PAD.decode(value).map_err(|error| {
         StoreKitError::InvalidArgument(format!("invalid base64url payload in {context}: {error}"))
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_json_str;
+
+    #[derive(Debug, serde::Deserialize)]
+    #[allow(dead_code)]
+    struct Probe {
+        flag: bool,
+        token: String,
+    }
+
+    #[test]
+    fn parse_errors_do_not_echo_payload_values() {
+        let json = r#"{"flag":"eyJhbGciOiJFUzI1NiJ9.c2VjcmV0.c2ln","token":"8c2f59b0-5c6e-4d4f-9f55-0d3d6f1f7a11"}"#;
+        let message = parse_json_str::<Probe>(json, "probe")
+            .expect_err("a string is not a bool")
+            .to_string();
+        assert!(message.contains("failed to parse probe JSON"));
+        assert!(!message.contains("eyJhbGciOiJFUzI1NiJ9"));
+        assert!(!message.contains("c2VjcmV0"));
+        assert!(!message.contains("8c2f59b0"));
+    }
+
+    #[test]
+    fn parse_errors_keep_missing_field_names() {
+        let message = parse_json_str::<Probe>(r#"{"flag":true}"#, "probe")
+            .expect_err("token is required")
+            .to_string();
+        assert!(message.contains("missing field `token`"));
+    }
+
+    #[test]
+    fn syntax_errors_report_position_only() {
+        let message = parse_json_str::<Probe>(r#"{"flag":true,"token":"abc"#, "probe")
+            .expect_err("unterminated JSON")
+            .to_string();
+        assert!(message.contains("line 1"));
+        assert!(!message.contains("abc"));
+    }
 }

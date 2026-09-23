@@ -57,7 +57,7 @@ use doom_fish_utils::panic_safe::catch_user_panic;
 
 use crate::app_transaction::{AppTransaction, AppTransactionPayload};
 use crate::error::StoreKitError;
-use crate::private::{cstring_from_str, json_cstring, take_string};
+use crate::private::{cstring_from_str, json_cstring, parse_json_str, take_string};
 use crate::product::{Product, ProductPayload};
 use crate::purchase_option::{PurchaseOption, PurchaseResult, PurchaseResultPayload};
 use crate::storefront::{Storefront, StorefrontPayload};
@@ -131,9 +131,7 @@ impl Future for ProductsFuture {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.inner).poll(cx).map(|r| {
             let json = r.map_err(StoreKitError::Unknown)?;
-            let payloads: Vec<ProductPayload> = serde_json::from_str(&json).map_err(|e| {
-                StoreKitError::InvalidArgument(format!("failed to parse products JSON: {e}"))
-            })?;
+            let payloads: Vec<ProductPayload> = parse_json_str(&json, "products")?;
             payloads
                 .into_iter()
                 .map(ProductPayload::into_product)
@@ -262,14 +260,12 @@ unsafe fn extract_purchase_result(ptr: *mut c_void) -> Result<PurchaseResult, St
     })?;
     let transaction_handle = crate::ffi::sk_purchase_async_result_take_handle(ptr);
 
-    let payload: PurchaseResultPayload = serde_json::from_str(&json).map_err(|e| {
-        if !transaction_handle.is_null() {
-            crate::ffi::sk_transaction_release(transaction_handle);
-        }
-        StoreKitError::InvalidArgument(format!(
-            "failed to parse purchase result JSON: {e}; payload={json}"
-        ))
-    })?;
+    let payload: PurchaseResultPayload =
+        parse_json_str(&json, "purchase result").inspect_err(|_| {
+            if !transaction_handle.is_null() {
+                crate::ffi::sk_transaction_release(transaction_handle);
+            }
+        })?;
     payload.into_purchase_result(transaction_handle)
 }
 
@@ -460,11 +456,7 @@ impl Future for AppTransactionFuture {
         Pin::new(&mut self.inner).poll(cx).map(|r| {
             let json = r.map_err(StoreKitError::Unknown)?;
             let payload: VerificationResultPayload<AppTransactionPayload> =
-                serde_json::from_str(&json).map_err(|e| {
-                    StoreKitError::InvalidArgument(format!(
-                        "failed to parse app transaction JSON: {e}"
-                    ))
-                })?;
+                parse_json_str(&json, "app transaction")?;
             payload.into_result(AppTransactionPayload::into_app_transaction)
         })
     }
@@ -552,12 +544,7 @@ impl Future for StorefrontCurrentFuture {
         Pin::new(&mut self.inner).poll(cx).map(|r| {
             let StorefrontResult(maybe_json) = r.map_err(StoreKitError::Unknown)?;
             let Some(json) = maybe_json else { return Ok(None) };
-            let wrapper: StorefrontCurrentPayload =
-                serde_json::from_str(&json).map_err(|e| {
-                    StoreKitError::InvalidArgument(format!(
-                        "failed to parse storefront JSON: {e}"
-                    ))
-                })?;
+            let wrapper: StorefrontCurrentPayload = parse_json_str(&json, "storefront")?;
             Ok(wrapper.storefront.map(StorefrontPayload::into_storefront))
         })
     }

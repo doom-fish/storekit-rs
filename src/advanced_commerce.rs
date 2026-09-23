@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use crate::app_store::AppStore;
 use crate::error::StoreKitError;
 use crate::ffi;
-use crate::private::{cstring_from_str, error_from_status, json_cstring, parse_json_ptr};
+use crate::private::{
+    cstring_from_str, error_from_status, json_cstring, json_error, parse_json_ptr,
+};
 use crate::product::ProductType;
 use crate::purchase_option::{PurchaseResult, PurchaseResultPayload};
 use crate::renewal_info::RenewalInfo;
@@ -759,12 +761,8 @@ struct TransactionSignedPayload {
 fn parse_transaction_advanced_commerce_info_payload(
     payload_data: &[u8],
 ) -> Result<Option<TransactionAdvancedCommerceInfo>, StoreKitError> {
-    let payload =
-        serde_json::from_slice::<TransactionSignedPayload>(payload_data).map_err(|error| {
-            StoreKitError::InvalidArgument(format!(
-                "failed to parse signed transaction payload JSON: {error}"
-            ))
-        })?;
+    let payload = serde_json::from_slice::<TransactionSignedPayload>(payload_data)
+        .map_err(|error| json_error(&error, "signed transaction payload"))?;
     Ok(payload
         .advanced_commerce_info
         .map(TransactionAdvancedCommerceInfoPayload::into_transaction_advanced_commerce_info))
@@ -773,12 +771,8 @@ fn parse_transaction_advanced_commerce_info_payload(
 fn parse_renewal_advanced_commerce_info_payload(
     payload_data: &[u8],
 ) -> Result<Option<RenewalInfoAdvancedCommerceInfo>, StoreKitError> {
-    let payload =
-        serde_json::from_slice::<RenewalSignedPayload>(payload_data).map_err(|error| {
-            StoreKitError::InvalidArgument(format!(
-                "failed to parse signed renewal payload JSON: {error}"
-            ))
-        })?;
+    let payload = serde_json::from_slice::<RenewalSignedPayload>(payload_data)
+        .map_err(|error| json_error(&error, "signed renewal payload"))?;
     Ok(payload
         .advanced_commerce_info
         .map(RenewalInfoAdvancedCommerceInfoPayload::into_renewal_info_advanced_commerce_info))
