@@ -59,10 +59,13 @@ mod async_tests {
         let result = pollster::block_on(async {
             AsyncPurchase::buy("com.example.does.not.exist.xyz123", &[])?.await
         });
-        assert!(
-            result.is_err(),
-            "expected an error when purchasing a non-existent product, got Ok"
-        );
+        match result {
+            Err(StoreKitError::InvalidArgument(message)) => {
+                assert!(message.contains("product not found"), "{message}");
+            }
+            Err(StoreKitError::Framework(_)) => {}
+            other => panic!("expected a typed error for a missing product, got {other:?}"),
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -77,7 +80,7 @@ mod async_tests {
         let result = pollster::block_on(AsyncAppStore::request_review());
         if let Err(ref e) = result {
             assert!(
-                matches!(e, StoreKitError::NotSupported(_) | StoreKitError::Unknown(_)),
+                matches!(e, StoreKitError::NotSupported(_)),
                 "unexpected error variant: {e}"
             );
         }

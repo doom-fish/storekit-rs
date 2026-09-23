@@ -550,7 +550,10 @@ impl FrameworkErrorPayload {
 }
 
 pub(crate) unsafe fn from_swift(status: i32, err_msg: *mut c_char) -> StoreKitError {
-    let message = take_string(err_msg);
+    from_status_message(status, take_string(err_msg))
+}
+
+pub(crate) fn from_status_message(status: i32, message: Option<String>) -> StoreKitError {
     match status {
         ffi::status::INVALID_ARGUMENT => StoreKitError::InvalidArgument(
             message.unwrap_or_else(|| "StoreKit reported an invalid argument".to_owned()),

@@ -237,6 +237,10 @@ func skPopulateError(
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     with error: Error
 ) {
+    outError?.pointee = skCString(skErrorMessage(for: error))
+}
+
+func skErrorMessage(for error: Error) -> String {
     let message: String
     if let bridgeError = error as? SKBridgeError {
         message = bridgeError.description
@@ -305,7 +309,7 @@ func skPopulateError(
         )
         message = (try? skEncodeJSON(payload)) ?? nsError.localizedDescription
     }
-    outError?.pointee = skCString(message)
+    return message
 }
 
 let SK_TIMEOUT_SECONDS = 30

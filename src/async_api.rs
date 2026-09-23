@@ -47,17 +47,18 @@
 //! # }
 //! ```
 
-use std::ffi::{c_void, CStr};
+use std::ffi::{c_char, c_void, CStr};
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use doom_fish_utils::completion::{error_from_cstr, AsyncCompletion, AsyncCompletionFuture};
+use doom_fish_utils::completion::{AsyncCompletion, AsyncCompletionFuture};
 use doom_fish_utils::panic_safe::catch_user_panic;
 
 use crate::app_transaction::{AppTransaction, AppTransactionPayload};
-use crate::error::StoreKitError;
-use crate::private::{cstring_from_str, json_cstring, parse_json_str, take_string};
+use crate::error::{from_status_message, StoreKitError};
+use crate::ffi;
+use crate::private::{cstring_from_str, json_cstring, parse_json_str};
 use crate::product::{Product, ProductPayload};
 use crate::purchase_option::{PurchaseOption, PurchaseResult, PurchaseResultPayload};
 use crate::storefront::{Storefront, StorefrontPayload};
@@ -68,56 +69,68 @@ use crate::verification_result::{VerificationResult, VerificationResultPayload};
 // Internal helpers
 // ============================================================================
 
-/// Read a transient JSON C-string from a `*const c_void` result pointer.
-///
-/// The caller's Swift thunk passes a `&str`-borrowed `CStr` as `UnsafeRawPointer`.
-/// We copy it to an owned `String` immediately so the borrow lifetime in Swift
-/// is satisfied before the callback returns.
-///
-/// # Safety
-///
-/// `result` must be a valid, non-null pointer to a NUL-terminated C string that
-/// remains alive for the entire duration of this call.  The pointer is borrowed
-/// (not freed) — ownership stays with the Swift caller.
-unsafe fn json_from_result_ptr(result: *const c_void) -> String {
-    // SAFETY: caller guarantees result is a valid, NUL-terminated C string
-    // for the duration of this call.
-    CStr::from_ptr(result.cast::<i8>())
-        .to_string_lossy()
-        .into_owned()
+struct BridgeReply {
+    status: i32,
+    json: Option<String>,
+    transaction: Option<TransactionHandle>,
+    error: Option<String>,
+}
+
+unsafe fn copy_c_str(ptr: *const c_char) -> Option<String> {
+    if ptr.is_null() {
+        None
+    } else {
+        Some(
+            unsafe { CStr::from_ptr(ptr) }
+                .to_string_lossy()
+                .into_owned(),
+        )
+    }
+}
+
+unsafe extern "C" fn bridge_callback(
+    ctx: *mut c_void,
+    status: i32,
+    json: *const c_char,
+    transaction: *mut c_void,
+    error: *const c_char,
+) {
+    let transaction = unsafe { TransactionHandle::from_raw(transaction) };
+    catch_user_panic("storekit async callback", || {
+        let reply = BridgeReply {
+            status,
+            json: unsafe { copy_c_str(json) },
+            transaction,
+            error: unsafe { copy_c_str(error) },
+        };
+        unsafe { AsyncCompletion::complete_ok(ctx, reply) };
+    });
+}
+
+type BridgeSuccess = (Option<String>, Option<TransactionHandle>);
+
+fn reply_result(reply: Result<BridgeReply, String>) -> Result<BridgeSuccess, StoreKitError> {
+    let reply = reply.map_err(StoreKitError::Unknown)?;
+    if reply.status == ffi::status::OK {
+        Ok((reply.json, reply.transaction))
+    } else {
+        Err(from_status_message(reply.status, reply.error))
+    }
+}
+
+fn reply_json(json: Option<String>, context: &str) -> Result<String, StoreKitError> {
+    json.ok_or_else(|| {
+        StoreKitError::InvalidArgument(format!("missing JSON payload for {context}"))
+    })
 }
 
 // ============================================================================
 // AsyncProducts — Product.products(for:) async throws -> [Product]
 // ============================================================================
 
-extern "C" fn products_cb(result: *const c_void, error: *const i8, ctx: *mut c_void) {
-    catch_user_panic("products_cb", || {
-        if !error.is_null() {
-            // SAFETY: error is a NUL-terminated C string, valid for this callback invocation.
-            let msg = unsafe { error_from_cstr(error) };
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe { AsyncCompletion::<String>::complete_err(ctx, msg) };
-        } else if !result.is_null() {
-            // SAFETY: result is a NUL-terminated C string, valid for this callback invocation.
-            let json = unsafe { json_from_result_ptr(result) };
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe { AsyncCompletion::complete_ok(ctx, json) };
-        } else {
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe {
-                AsyncCompletion::<String>::complete_err(
-                    ctx,
-                    "no result from sk_products_async".into(),
-                );
-            };
-        }
-    });
-}
-
 /// Future for [`AsyncProducts::fetch`].
 pub struct ProductsFuture {
-    inner: AsyncCompletionFuture<String>,
+    inner: AsyncCompletionFuture<BridgeReply>,
 }
 
 impl std::fmt::Debug for ProductsFuture {
@@ -130,9 +143,10 @@ impl Future for ProductsFuture {
     type Output = Result<Vec<Product>, StoreKitError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.inner).poll(cx).map(|r| {
-            let json = r.map_err(StoreKitError::Unknown)?;
-            let payloads: Vec<ProductPayload> = parse_json_str(&json, "products")?;
+        Pin::new(&mut self.inner).poll(cx).map(|reply| {
+            let (json, _) = reply_result(reply)?;
+            let payloads: Vec<ProductPayload> =
+                parse_json_str(&reply_json(json, "products")?, "products")?;
             payloads
                 .into_iter()
                 .map(ProductPayload::into_product)
@@ -172,7 +186,7 @@ impl AsyncProducts {
             .collect();
         let ids_json = json_cstring(&ids, "product identifiers")?;
         let (future, ctx) = AsyncCompletion::create();
-        unsafe { crate::ffi::sk_products_async(ids_json.as_ptr(), products_cb, ctx) }
+        unsafe { ffi::sk_products_async(ids_json.as_ptr(), bridge_callback, ctx) }
         Ok(ProductsFuture { inner: future })
     }
 }
@@ -181,49 +195,9 @@ impl AsyncProducts {
 // AsyncPurchase — Product.purchase(options:) async throws -> Product.PurchaseResult
 // ============================================================================
 
-/// Wrapper that carries the opaque Swift `SKPurchaseAsyncResult` pointer.
-/// `Send` is safe because the pointer is a retained Swift object with no
-/// thread-affinity restrictions after it has been constructed.
-struct RawPurchaseBox(*mut c_void);
-unsafe impl Send for RawPurchaseBox {}
-
-impl Drop for RawPurchaseBox {
-    fn drop(&mut self) {
-        if !self.0.is_null() {
-            // SAFETY: self.0 is a retained SKPurchaseAsyncResult that this wrapper
-            // uniquely owns.  Drop is the sole release point and runs exactly once.
-            unsafe { crate::ffi::sk_purchase_async_result_release(self.0) };
-        }
-    }
-}
-
-extern "C" fn purchase_cb(result: *const c_void, error: *const i8, ctx: *mut c_void) {
-    catch_user_panic("purchase_cb", || {
-        if !error.is_null() {
-            // SAFETY: error is a NUL-terminated C string, valid for this callback invocation.
-            let msg = unsafe { error_from_cstr(error) };
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe { AsyncCompletion::<RawPurchaseBox>::complete_err(ctx, msg) };
-        } else if !result.is_null() {
-            // result_ptr is a *retained* SKPurchaseAsyncResult — take ownership.
-            let boxed = RawPurchaseBox(result.cast_mut());
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe { AsyncCompletion::complete_ok(ctx, boxed) };
-        } else {
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe {
-                AsyncCompletion::<RawPurchaseBox>::complete_err(
-                    ctx,
-                    "no result from sk_product_purchase_async".into(),
-                );
-            };
-        }
-    });
-}
-
 /// Future for [`AsyncPurchase::buy`].
 pub struct PurchaseFuture {
-    inner: AsyncCompletionFuture<RawPurchaseBox>,
+    inner: AsyncCompletionFuture<BridgeReply>,
 }
 
 impl std::fmt::Debug for PurchaseFuture {
@@ -236,34 +210,15 @@ impl Future for PurchaseFuture {
     type Output = Result<PurchaseResult, StoreKitError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.inner).poll(cx).map(|r| {
-            let raw_box = r.map_err(StoreKitError::Unknown)?;
-            let ptr = raw_box.0;
-            // SAFETY: ptr is a retained Swift SKPurchaseAsyncResult owned by raw_box.
-            // raw_box's Drop impl calls sk_purchase_async_result_release, so the
-            // pointer is released even if extract_purchase_result panics or returns early.
-            let result = unsafe { extract_purchase_result(ptr) };
-            // raw_box drops here, releasing the pointer.
-            result
+        Pin::new(&mut self.inner).poll(cx).map(|reply| {
+            let (json, transaction) = reply_result(reply)?;
+            parse_json_str::<PurchaseResultPayload>(
+                &reply_json(json, "purchase result")?,
+                "purchase result",
+            )?
+            .into_purchase_result(transaction)
         })
     }
-}
-
-/// Extract `PurchaseResult` from a retained `SKPurchaseAsyncResult` pointer.
-///
-/// # Safety
-///
-/// `ptr` must be a valid, retained `SKPurchaseAsyncResult` pointer.
-unsafe fn extract_purchase_result(ptr: *mut c_void) -> Result<PurchaseResult, StoreKitError> {
-    let json_ptr = crate::ffi::sk_purchase_async_result_json(ptr);
-    let json = take_string(json_ptr).ok_or_else(|| {
-        StoreKitError::InvalidArgument("missing JSON from purchase async result".into())
-    })?;
-    let transaction_handle =
-        TransactionHandle::from_raw(crate::ffi::sk_purchase_async_result_take_handle(ptr));
-
-    parse_json_str::<PurchaseResultPayload>(&json, "purchase result")?
-        .into_purchase_result(transaction_handle)
 }
 
 /// Async wrapper for `Product.purchase(options:)`.
@@ -290,11 +245,14 @@ impl AsyncPurchase {
     ///
     /// Returns an error if the product cannot be found, the purchase fails,
     /// or the options cannot be encoded.
-    pub fn buy(product_id: &str, options: &[PurchaseOption]) -> Result<PurchaseFuture, StoreKitError> {
+    pub fn buy(
+        product_id: &str,
+        options: &[PurchaseOption],
+    ) -> Result<PurchaseFuture, StoreKitError> {
         let id = cstring_from_str(product_id, "product id")?;
         let opts = json_cstring(options, "purchase options")?;
         let (future, ctx) = AsyncCompletion::create();
-        unsafe { crate::ffi::sk_product_purchase_async(id.as_ptr(), opts.as_ptr(), purchase_cb, ctx); }
+        unsafe { ffi::sk_product_purchase_async(id.as_ptr(), opts.as_ptr(), bridge_callback, ctx) }
         Ok(PurchaseFuture { inner: future })
     }
 }
@@ -303,29 +261,15 @@ impl AsyncPurchase {
 // AsyncAppStore — AppStore.requestReview() / showManageSubscriptions()
 // ============================================================================
 
-extern "C" fn void_cb(_result: *const c_void, error: *const i8, ctx: *mut c_void) {
-    catch_user_panic("void_cb", || {
-        if error.is_null() {
-            // Ignore result_ptr; void APIs use a sentinel 0x1 which we don't need.
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe { AsyncCompletion::complete_ok(ctx, ()) };
-        } else {
-            // SAFETY: error is a NUL-terminated C string, valid for this callback invocation.
-            let msg = unsafe { error_from_cstr(error) };
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe { AsyncCompletion::<()>::complete_err(ctx, msg) };
-        }
-    });
-}
-
 /// Future for [`AsyncAppStore::request_review`].
 pub struct RequestReviewFuture {
-    inner: AsyncCompletionFuture<()>,
+    inner: AsyncCompletionFuture<BridgeReply>,
 }
 
 impl std::fmt::Debug for RequestReviewFuture {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RequestReviewFuture").finish_non_exhaustive()
+        f.debug_struct("RequestReviewFuture")
+            .finish_non_exhaustive()
     }
 }
 
@@ -335,13 +279,13 @@ impl Future for RequestReviewFuture {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.inner)
             .poll(cx)
-            .map(|r| r.map_err(StoreKitError::Unknown))
+            .map(|reply| reply_result(reply).map(|_| ()))
     }
 }
 
 /// Future for [`AsyncAppStore::show_manage_subscriptions`].
 pub struct ShowManageSubscriptionsFuture {
-    inner: AsyncCompletionFuture<()>,
+    inner: AsyncCompletionFuture<BridgeReply>,
 }
 
 impl std::fmt::Debug for ShowManageSubscriptionsFuture {
@@ -357,7 +301,7 @@ impl Future for ShowManageSubscriptionsFuture {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.inner)
             .poll(cx)
-            .map(|r| r.map_err(StoreKitError::NotSupported))
+            .map(|reply| reply_result(reply).map(|_| ()))
     }
 }
 
@@ -386,7 +330,7 @@ impl AsyncAppStore {
     #[must_use = "futures do nothing unless polled"]
     pub fn request_review() -> RequestReviewFuture {
         let (future, ctx) = AsyncCompletion::create();
-        unsafe { crate::ffi::sk_app_store_request_review_async(void_cb, ctx) }
+        unsafe { ffi::sk_app_store_request_review_async(bridge_callback, ctx) }
         RequestReviewFuture { inner: future }
     }
 
@@ -402,7 +346,7 @@ impl AsyncAppStore {
     #[must_use = "futures do nothing unless polled"]
     pub fn show_manage_subscriptions() -> ShowManageSubscriptionsFuture {
         let (future, ctx) = AsyncCompletion::create();
-        unsafe { crate::ffi::sk_app_store_show_manage_subscriptions_async(void_cb, ctx) }
+        unsafe { ffi::sk_app_store_show_manage_subscriptions_async(bridge_callback, ctx) }
         ShowManageSubscriptionsFuture { inner: future }
     }
 }
@@ -411,38 +355,15 @@ impl AsyncAppStore {
 // AsyncAppTransaction — AppTransaction.shared async throws
 // ============================================================================
 
-extern "C" fn app_transaction_cb(result: *const c_void, error: *const i8, ctx: *mut c_void) {
-    catch_user_panic("app_transaction_cb", || {
-        if !error.is_null() {
-            // SAFETY: error is a NUL-terminated C string, valid for this callback invocation.
-            let msg = unsafe { error_from_cstr(error) };
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe { AsyncCompletion::<String>::complete_err(ctx, msg) };
-        } else if !result.is_null() {
-            // SAFETY: result is a NUL-terminated C string, valid for this callback invocation.
-            let json = unsafe { json_from_result_ptr(result) };
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe { AsyncCompletion::complete_ok(ctx, json) };
-        } else {
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe {
-                AsyncCompletion::<String>::complete_err(
-                    ctx,
-                    "no result from sk_app_transaction_shared_async".into(),
-                );
-            };
-        }
-    });
-}
-
 /// Future for [`AsyncAppTransaction::shared`].
 pub struct AppTransactionFuture {
-    inner: AsyncCompletionFuture<String>,
+    inner: AsyncCompletionFuture<BridgeReply>,
 }
 
 impl std::fmt::Debug for AppTransactionFuture {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AppTransactionFuture").finish_non_exhaustive()
+        f.debug_struct("AppTransactionFuture")
+            .finish_non_exhaustive()
     }
 }
 
@@ -450,19 +371,22 @@ impl Future for AppTransactionFuture {
     type Output = Result<VerificationResult<AppTransaction>, StoreKitError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.inner).poll(cx).map(|r| {
-            let json = r.map_err(StoreKitError::Unknown)?;
-            let payload: VerificationResultPayload<AppTransactionPayload> =
-                parse_json_str(&json, "app transaction")?;
-            payload.into_result(AppTransactionPayload::into_app_transaction)
+        Pin::new(&mut self.inner).poll(cx).map(|reply| {
+            let (json, _) = reply_result(reply)?;
+            parse_json_str::<VerificationResultPayload<AppTransactionPayload>>(
+                &reply_json(json, "app transaction")?,
+                "app transaction",
+            )?
+            .into_result(AppTransactionPayload::into_app_transaction)
         })
     }
 }
 
 /// Async wrapper for `AppTransaction.shared`.
 ///
-/// Returns a `VerificationResult<AppTransaction>` that can be verified
-/// with `.verified()` to confirm the transaction's authenticity.
+/// Returns a `VerificationResult<AppTransaction>`; use
+/// [`VerificationResult::payload_value`] to read the app transaction only
+/// after `StoreKit` has verified it.
 ///
 /// Requires macOS 13.0+.
 ///
@@ -484,7 +408,7 @@ impl AsyncAppTransaction {
     #[must_use = "futures do nothing unless polled"]
     pub fn shared() -> AppTransactionFuture {
         let (future, ctx) = AsyncCompletion::create();
-        unsafe { crate::ffi::sk_app_transaction_shared_async(app_transaction_cb, ctx) }
+        unsafe { ffi::sk_app_transaction_shared_async(bridge_callback, ctx) }
         AppTransactionFuture { inner: future }
     }
 }
@@ -492,29 +416,6 @@ impl AsyncAppTransaction {
 // ============================================================================
 // AsyncStorefront — Storefront.current async
 // ============================================================================
-
-/// Wrapper that carries the optional storefront JSON.
-struct StorefrontResult(Option<String>);
-
-extern "C" fn storefront_cb(result: *const c_void, error: *const i8, ctx: *mut c_void) {
-    catch_user_panic("storefront_cb", || {
-        if !error.is_null() {
-            // SAFETY: error is a NUL-terminated C string, valid for this callback invocation.
-            let msg = unsafe { error_from_cstr(error) };
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe { AsyncCompletion::<StorefrontResult>::complete_err(ctx, msg) };
-        } else if !result.is_null() {
-            // SAFETY: result is a NUL-terminated C string, valid for this callback invocation.
-            let json = unsafe { json_from_result_ptr(result) };
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe { AsyncCompletion::complete_ok(ctx, StorefrontResult(Some(json))) };
-        } else {
-            // nil result_ptr means success but nil storefront
-            // SAFETY: ctx is the Arc pointer from AsyncCompletion::create(); fired at most once.
-            unsafe { AsyncCompletion::complete_ok(ctx, StorefrontResult(None)) };
-        }
-    });
-}
 
 /// JSON envelope emitted by `sk_storefront_current_async`.
 #[derive(serde::Deserialize)]
@@ -524,7 +425,7 @@ struct StorefrontCurrentPayload {
 
 /// Future for [`AsyncStorefront::current`].
 pub struct StorefrontCurrentFuture {
-    inner: AsyncCompletionFuture<StorefrontResult>,
+    inner: AsyncCompletionFuture<BridgeReply>,
 }
 
 impl std::fmt::Debug for StorefrontCurrentFuture {
@@ -538,10 +439,10 @@ impl Future for StorefrontCurrentFuture {
     type Output = Result<Option<Storefront>, StoreKitError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.inner).poll(cx).map(|r| {
-            let StorefrontResult(maybe_json) = r.map_err(StoreKitError::Unknown)?;
-            let Some(json) = maybe_json else { return Ok(None) };
-            let wrapper: StorefrontCurrentPayload = parse_json_str(&json, "storefront")?;
+        Pin::new(&mut self.inner).poll(cx).map(|reply| {
+            let (json, _) = reply_result(reply)?;
+            let wrapper: StorefrontCurrentPayload =
+                parse_json_str(&reply_json(json, "storefront")?, "storefront")?;
             Ok(wrapper.storefront.map(StorefrontPayload::into_storefront))
         })
     }
@@ -561,7 +462,109 @@ impl AsyncStorefront {
     #[must_use = "futures do nothing unless polled"]
     pub fn current() -> StorefrontCurrentFuture {
         let (future, ctx) = AsyncCompletion::create();
-        unsafe { crate::ffi::sk_storefront_current_async(storefront_cb, ctx) }
+        unsafe { ffi::sk_storefront_current_async(bridge_callback, ctx) }
         StorefrontCurrentFuture { inner: future }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::CString;
+    use std::ptr;
+
+    use super::{
+        bridge_callback, AsyncCompletion, PurchaseFuture, RequestReviewFuture,
+        StorefrontCurrentFuture,
+    };
+    use crate::error::{ProductPurchaseErrorCode, StoreKitError, VerificationErrorCode};
+    use crate::ffi::status;
+
+    fn fire(ctx: *mut std::ffi::c_void, status: i32, json: Option<&str>, error: Option<&str>) {
+        let json = json.map(|value| CString::new(value).expect("json without NUL"));
+        let error = error.map(|value| CString::new(value).expect("error without NUL"));
+        unsafe {
+            bridge_callback(
+                ctx,
+                status,
+                json.as_ref().map_or(ptr::null(), |value| value.as_ptr()),
+                ptr::null_mut(),
+                error.as_ref().map_or(ptr::null(), |value| value.as_ptr()),
+            );
+        }
+    }
+
+    #[test]
+    fn framework_errors_keep_their_typed_details() {
+        let (inner, ctx) = AsyncCompletion::create();
+        fire(
+            ctx,
+            status::FRAMEWORK_ERROR,
+            None,
+            Some(
+                r#"{"kind":"purchaseError","code":"invalidQuantity","errorDescription":"bad quantity","failureReason":null,"recoverySuggestion":null}"#,
+            ),
+        );
+        let error = pollster::block_on(PurchaseFuture { inner }).expect_err("framework error");
+        assert!(matches!(error, StoreKitError::Framework(_)));
+        assert_eq!(
+            error.product_purchase_error().map(|typed| typed.code),
+            Some(ProductPurchaseErrorCode::InvalidQuantity)
+        );
+    }
+
+    #[test]
+    fn bridge_statuses_map_to_their_error_variants() {
+        let (inner, ctx) = AsyncCompletion::create();
+        fire(ctx, status::NOT_SUPPORTED, None, Some("needs macOS 13.0+"));
+        match pollster::block_on(RequestReviewFuture { inner }) {
+            Err(StoreKitError::NotSupported(message)) => assert_eq!(message, "needs macOS 13.0+"),
+            other => panic!("expected NotSupported, got {other:?}"),
+        }
+
+        let (inner, ctx) = AsyncCompletion::create();
+        fire(
+            ctx,
+            status::VERIFICATION_ERROR,
+            None,
+            Some(
+                r#"{"kind":"verification","code":"invalidSignature","localizedDescription":"bad signature"}"#,
+            ),
+        );
+        match pollster::block_on(PurchaseFuture { inner }) {
+            Err(StoreKitError::Verification(failure)) => {
+                assert_eq!(failure.code, VerificationErrorCode::InvalidSignature);
+            }
+            other => panic!("expected a verification error, got {other:?}"),
+        }
+
+        let (inner, ctx) = AsyncCompletion::create();
+        fire(ctx, status::TIMED_OUT, None, None);
+        assert!(matches!(
+            pollster::block_on(RequestReviewFuture { inner }),
+            Err(StoreKitError::TimedOut(_))
+        ));
+    }
+
+    #[test]
+    fn successful_replies_decode_their_payload() {
+        let (inner, ctx) = AsyncCompletion::create();
+        fire(
+            ctx,
+            status::OK,
+            Some(r#"{"storefront":{"countryCode":"USA","id":"143441","currencyCode":"USD"}}"#),
+            None,
+        );
+        let storefront = pollster::block_on(StorefrontCurrentFuture { inner })
+            .expect("storefront reply")
+            .expect("storefront present");
+        assert_eq!(storefront.country_code, "USA");
+        assert_eq!(storefront.currency_code.as_deref(), Some("USD"));
+
+        let (inner, ctx) = AsyncCompletion::create();
+        fire(ctx, status::OK, None, None);
+        assert!(matches!(
+            pollster::block_on(StorefrontCurrentFuture { inner }),
+            Err(StoreKitError::InvalidArgument(_))
+        ));
     }
 }
