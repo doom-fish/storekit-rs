@@ -49,7 +49,12 @@ func skBuildPurchaseOptions(
             }
             options.insert(.quantity(quantity))
         case "simulatesAskToBuyInSandbox":
-            options.insert(.simulatesAskToBuyInSandbox(payload.simulateAskToBuyInSandbox ?? false))
+            guard let simulate = payload.simulateAskToBuyInSandbox else {
+                throw SKBridgeError.invalidArgument(
+                    "simulatesAskToBuyInSandbox requires simulateAskToBuyInSandbox"
+                )
+            }
+            options.insert(.simulatesAskToBuyInSandbox(simulate))
         case "customString":
             guard let key = payload.key, let value = payload.value else {
                 throw SKBridgeError.invalidArgument("customString requires key and value")
@@ -125,7 +130,10 @@ func skBuildPurchaseOptions(
             }
             options.insert(.winBackOffer(offer))
         case "onStorefrontChange":
-            options.insert(.onStorefrontChange { _ in payload.shouldContinuePurchase ?? true })
+            guard let shouldContinuePurchase = payload.shouldContinuePurchase else {
+                throw SKBridgeError.invalidArgument("onStorefrontChange requires shouldContinuePurchase")
+            }
+            options.insert(.onStorefrontChange { _ in shouldContinuePurchase })
         default:
             throw SKBridgeError.invalidArgument("unsupported purchase option kind '\(payload.kind)'")
         }

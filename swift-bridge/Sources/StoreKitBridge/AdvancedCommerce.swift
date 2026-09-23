@@ -85,7 +85,10 @@ func skBuildAdvancedCommercePurchaseOptions(
     for payload in payloads {
         switch payload.kind {
         case "onStorefrontChange":
-            options.insert(.onStorefrontChange { _ in payload.shouldContinuePurchase ?? true })
+            guard let shouldContinuePurchase = payload.shouldContinuePurchase else {
+                throw SKBridgeError.invalidArgument("onStorefrontChange requires shouldContinuePurchase")
+            }
+            options.insert(.onStorefrontChange { _ in shouldContinuePurchase })
         default:
             throw SKBridgeError.invalidArgument(
                 "unsupported advanced-commerce purchase option kind '\(payload.kind)'"

@@ -45,3 +45,19 @@ fn advanced_commerce_helpers_are_exposed() {
         &[AdvancedCommercePurchaseOption],
     ) -> Result<PurchaseResult, StoreKitError> = AdvancedCommerceProduct::purchase_in_window;
 }
+
+#[test]
+fn advanced_commerce_payloads_match_the_bridge_json() {
+    assert_eq!(
+        serde_json::to_value(AppStoreMerchandisingKind::subscription_bundle("group.pro"))
+            .expect("merchandising kind serializes"),
+        serde_json::json!({"kind": "subscriptionBundle", "groupID": "group.pro"})
+    );
+    assert_eq!(
+        serde_json::to_value(AdvancedCommercePurchaseOption::OnStorefrontChange {
+            should_continue_purchase: false,
+        })
+        .expect("advanced-commerce option serializes"),
+        serde_json::json!({"kind": "onStorefrontChange", "shouldContinuePurchase": false})
+    );
+}

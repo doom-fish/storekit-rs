@@ -5,8 +5,8 @@ use crate::subscription_info::BillingPlanType;
 use crate::transaction::{Transaction, TransactionHandle, TransactionPayload};
 use crate::verification_result::{VerificationResult, VerificationResultPayload};
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 /// Represents options passed to `StoreKit.Product.purchase(options:)`.
 pub enum PurchaseOption {
     /// Represents the `AppAccountToken` `StoreKit` case.
@@ -42,6 +42,7 @@ pub enum PurchaseOption {
         /// Value forwarded to `StoreKit` for `key`.
         key: String,
         /// Value returned by `StoreKit`.
+        #[serde(rename = "doubleValue")]
         value: f64,
     },
     /// Represents the `CustomBool` `StoreKit` case.
@@ -49,6 +50,7 @@ pub enum PurchaseOption {
         /// Value forwarded to `StoreKit` for `key`.
         key: String,
         /// Value returned by `StoreKit`.
+        #[serde(rename = "boolValue")]
         value: bool,
     },
     /// Represents the `CustomData` `StoreKit` case.

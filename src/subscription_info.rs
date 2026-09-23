@@ -1,6 +1,6 @@
 use core::ptr;
 
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::error::StoreKitError;
 use crate::ffi;
@@ -51,6 +51,15 @@ impl Serialize for BillingPlanType {
         S: Serializer,
     {
         serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for BillingPlanType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        String::deserialize(deserializer).map(Self::from_raw)
     }
 }
 
