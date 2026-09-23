@@ -52,25 +52,47 @@ func skProductPayload(from product: Product) -> SKProductPayload {
     )
 }
 
-func skPurchaseResultPayload(
-    from result: Product.PurchaseResult,
-    outTransaction: UnsafeMutablePointer<UnsafeMutableRawPointer?>?
-) throws -> SKPurchaseResultPayload {
+struct SKTransactionOutcome {
+    let json: String
+    let transaction: SKTransactionBox?
+}
+
+func skWriteTransactionOutcome(
+    _ outcome: SKTransactionOutcome?,
+    outTransaction: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
+    outResultJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) {
+    guard let outcome else {
+        return
+    }
+    outResultJSON?.pointee = skCString(outcome.json)
+    outTransaction?.pointee = outcome.transaction.map { sk_retain($0) }
+}
+
+func skPurchaseResultParts(
+    from result: Product.PurchaseResult
+) throws -> (payload: SKPurchaseResultPayload, transaction: SKTransactionBox?) {
     switch result {
     case .success(let verificationResult):
-        let box = SKTransactionBox(result: verificationResult)
-        outTransaction?.pointee = sk_retain(box)
-        return SKPurchaseResultPayload(
-            kind: "success",
-            verificationResult: skTransactionVerificationResultPayload(from: verificationResult)
+        return (
+            SKPurchaseResultPayload(
+                kind: "success",
+                verificationResult: skTransactionVerificationResultPayload(from: verificationResult)
+            ),
+            SKTransactionBox(result: verificationResult)
         )
     case .userCancelled:
-        return SKPurchaseResultPayload(kind: "userCancelled", verificationResult: nil)
+        return (SKPurchaseResultPayload(kind: "userCancelled", verificationResult: nil), nil)
     case .pending:
-        return SKPurchaseResultPayload(kind: "pending", verificationResult: nil)
+        return (SKPurchaseResultPayload(kind: "pending", verificationResult: nil), nil)
     @unknown default:
         throw SKBridgeError.unknown("StoreKit returned an unknown purchase result")
     }
+}
+
+func skPurchaseOutcome(from result: Product.PurchaseResult) throws -> SKTransactionOutcome {
+    let parts = try skPurchaseResultParts(from: result)
+    return SKTransactionOutcome(json: try skEncodeJSON(parts.payload), transaction: parts.transaction)
 }
 
 @_cdecl("sk_products_json")
@@ -114,6 +136,7 @@ public func sk_product_purchase(
         skPopulateError(outError, with: error)
         return error.statusCode
     }
+    let productIDString = String(cString: productID)
 
     let optionPayloads: [SKPurchaseOptionPayload]
     do {
@@ -124,17 +147,14 @@ public func sk_product_purchase(
     }
 
     return skBlockOnMainActorAsync(
-        timeoutSeconds: 60,
+        label: "Product.purchase(options:)",
         work: {
-            let product = try await skSingleProduct(for: String(cString: productID))
+            let product = try await skSingleProduct(for: productIDString)
             let options = try skBuildPurchaseOptions(from: optionPayloads, product: product)
-            let result = try await product.purchase(options: options)
-            return try skEncodeJSON(
-                try skPurchaseResultPayload(from: result, outTransaction: outTransaction)
-            )
+            return try skPurchaseOutcome(from: try await product.purchase(options: options))
         },
-        onSuccess: { json in
-            outResultJSON?.pointee = skCString(json)
+        onSuccess: { outcome in
+            skWriteTransactionOutcome(outcome, outTransaction: outTransaction, outResultJSON: outResultJSON)
         },
         onError: { error in
             skPopulateError(outError, with: error)
@@ -151,41 +171,39 @@ public func sk_product_purchase_in_window(
     _ outResultJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    guard #available(macOS 15.2, *) else {
+        let error = SKBridgeError.notSupported("Product.purchase(confirmIn:options:) requires macOS 15.2+")
+        skPopulateError(outError, with: error)
+        return error.statusCode
+    }
     guard let productID else {
         let error = SKBridgeError.invalidArgument("missing product identifier")
         skPopulateError(outError, with: error)
         return error.statusCode
     }
+    let productIDString = String(cString: productID)
 
     let optionPayloads: [SKPurchaseOptionPayload]
+    let confirmedWindow: NSWindow
     do {
         optionPayloads = try skDecodeJSONIfPresent(optionsJSON, as: [SKPurchaseOptionPayload].self) ?? []
+        confirmedWindow = try skBorrowWindow(window, context: "Product.purchase(confirmIn:options:)")
     } catch {
         skPopulateError(outError, with: error)
         return skStatus(for: error)
     }
 
     return skBlockOnMainActorAsync(
-        timeoutSeconds: 60,
+        label: "Product.purchase(confirmIn:options:)",
         work: {
-            guard #available(macOS 15.2, *) else {
-                throw SKBridgeError.notSupported(
-                    "Product.purchase(confirmIn:options:) requires macOS 15.2+"
-                )
-            }
-            let product = try await skSingleProduct(for: String(cString: productID))
-            let confirmedWindow: NSWindow = try skBorrowWindow(
-                window,
-                context: "Product.purchase(confirmIn:options:)"
-            )
+            let product = try await skSingleProduct(for: productIDString)
             let options = try skBuildPurchaseOptions(from: optionPayloads, product: product)
-            let result = try await product.purchase(confirmIn: confirmedWindow, options: options)
-            return try skEncodeJSON(
-                try skPurchaseResultPayload(from: result, outTransaction: outTransaction)
+            return try skPurchaseOutcome(
+                from: try await product.purchase(confirmIn: confirmedWindow, options: options)
             )
         },
-        onSuccess: { json in
-            outResultJSON?.pointee = skCString(json)
+        onSuccess: { outcome in
+            skWriteTransactionOutcome(outcome, outTransaction: outTransaction, outResultJSON: outResultJSON)
         },
         onError: { error in
             skPopulateError(outError, with: error)

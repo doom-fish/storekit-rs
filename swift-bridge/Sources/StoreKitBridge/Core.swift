@@ -308,66 +308,144 @@ func skPopulateError(
     outError?.pointee = skCString(message)
 }
 
-func skBlockOnAsync<T>(
-    timeoutSeconds: Int = 30,
-    work: @escaping () async throws -> T,
-    onSuccess: @escaping (T) -> Void,
-    onError: @escaping (Error) -> Void
-) -> Int32 {
-    let semaphore = DispatchSemaphore(value: 0)
-    var result: Result<T, Error>?
+let SK_TIMEOUT_SECONDS = 30
+let SK_UI_START_TIMEOUT_SECONDS = 10
+let SK_UI_TIMEOUT_SECONDS = 600
 
-    Task {
-        do {
-            result = .success(try await work())
-        } catch {
-            result = .failure(error)
+enum SKAwaitOutcome<Value> {
+    case finished(Result<Value, Error>)
+    case notStarted
+    case timedOut
+}
+
+final class SKAwaitState<Value> {
+    private let condition = NSCondition()
+    private var started = false
+    private var abandoned = false
+    private var result: Result<Value, Error>?
+
+    func begin() -> Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        if abandoned {
+            return false
         }
-        semaphore.signal()
+        started = true
+        condition.broadcast()
+        return true
     }
 
-    guard semaphore.wait(timeout: .now() + .seconds(timeoutSeconds)) == .success else {
-        onError(SKBridgeError.timedOut("StoreKit operation timed out after \(timeoutSeconds) seconds"))
-        return SK_TIMED_OUT
+    func complete(_ value: Result<Value, Error>) {
+        condition.lock()
+        if result == nil {
+            result = value
+        }
+        condition.broadcast()
+        condition.unlock()
     }
 
-    switch result {
-    case .success(let value):
-        onSuccess(value)
-        return SK_OK
-    case .failure(let error):
-        onError(error)
-        return skStatus(for: error)
-    case .none:
-        let error = SKBridgeError.unknown("StoreKit operation completed without a result")
-        onError(error)
-        return error.statusCode
+    func wait(startDeadline: Date?, deadline: Date) -> SKAwaitOutcome<Value> {
+        condition.lock()
+        defer { condition.unlock() }
+        while true {
+            if let result {
+                return .finished(result)
+            }
+            let now = Date()
+            if !started, let startDeadline, now >= startDeadline {
+                abandoned = true
+                return .notStarted
+            }
+            if now >= deadline {
+                abandoned = true
+                return .timedOut
+            }
+            if !started, let startDeadline {
+                _ = condition.wait(until: min(startDeadline, deadline))
+            } else {
+                _ = condition.wait(until: deadline)
+            }
+        }
     }
 }
 
-func skBlockOnMainActorAsync<T>(
-    timeoutSeconds: Int = 30,
-    work: @escaping @MainActor () async throws -> T,
-    onSuccess: @escaping (T) -> Void,
-    onError: @escaping (Error) -> Void
-) -> Int32 {
-    let semaphore = DispatchSemaphore(value: 0)
-    var result: Result<T, Error>?
-
-    Task { @MainActor in
-        do {
-            result = .success(try await work())
-        } catch {
-            result = .failure(error)
+func skAwait<T>(
+    label: String,
+    timeoutSeconds: Int,
+    work: @escaping () async throws -> T
+) -> Result<T, Error> {
+    let state = SKAwaitState<T>()
+    let task = Task {
+        guard state.begin() else {
+            return
         }
-        semaphore.signal()
+        do {
+            state.complete(.success(try await work()))
+        } catch {
+            state.complete(.failure(error))
+        }
     }
-
-    guard semaphore.wait(timeout: .now() + .seconds(timeoutSeconds)) == .success else {
-        onError(SKBridgeError.timedOut("StoreKit operation timed out after \(timeoutSeconds) seconds"))
-        return SK_TIMED_OUT
+    switch state.wait(startDeadline: nil, deadline: Date(timeIntervalSinceNow: TimeInterval(timeoutSeconds))) {
+    case .finished(let result):
+        return result
+    case .notStarted, .timedOut:
+        task.cancel()
+        return .failure(SKBridgeError.timedOut("\(label) timed out after \(timeoutSeconds) seconds and was cancelled"))
     }
+}
 
+func skAwaitMainActor<T>(
+    label: String,
+    work: @escaping @MainActor () async throws -> T
+) -> Result<T, Error> {
+    guard !Thread.isMainThread else {
+        return .failure(
+            SKBridgeError.notSupported(
+                "\(label) presents StoreKit UI on the main actor and would block the main thread; call it from another thread or use the async API"
+            )
+        )
+    }
+    let state = SKAwaitState<T>()
+    let task = Task { @MainActor in
+        guard state.begin() else {
+            return
+        }
+        do {
+            state.complete(.success(try await work()))
+        } catch {
+            state.complete(.failure(error))
+        }
+    }
+    let now = Date()
+    let outcome = state.wait(
+        startDeadline: now.addingTimeInterval(TimeInterval(SK_UI_START_TIMEOUT_SECONDS)),
+        deadline: now.addingTimeInterval(TimeInterval(SK_UI_TIMEOUT_SECONDS))
+    )
+    switch outcome {
+    case .finished(let result):
+        return result
+    case .notStarted:
+        task.cancel()
+        return .failure(
+            SKBridgeError.timedOut(
+                "\(label) did not start within \(SK_UI_START_TIMEOUT_SECONDS) seconds because the main thread is not running its run loop; no StoreKit UI was presented"
+            )
+        )
+    case .timedOut:
+        task.cancel()
+        return .failure(
+            SKBridgeError.timedOut(
+                "\(label) did not finish within \(SK_UI_TIMEOUT_SECONDS) seconds and was cancelled; a purchase that completes later is delivered through Transaction.updates"
+            )
+        )
+    }
+}
+
+func skComplete<T>(
+    _ result: Result<T, Error>,
+    onSuccess: (T) -> Void,
+    onError: (Error) -> Void
+) -> Int32 {
     switch result {
     case .success(let value):
         onSuccess(value)
@@ -375,17 +453,41 @@ func skBlockOnMainActorAsync<T>(
     case .failure(let error):
         onError(error)
         return skStatus(for: error)
-    case .none:
-        let error = SKBridgeError.unknown("StoreKit operation completed without a result")
-        onError(error)
-        return error.statusCode
     }
+}
+
+func skBlockOnAsync<T>(
+    label: String = "StoreKit operation",
+    timeoutSeconds: Int = SK_TIMEOUT_SECONDS,
+    work: @escaping () async throws -> T,
+    onSuccess: (T) -> Void,
+    onError: (Error) -> Void
+) -> Int32 {
+    skComplete(
+        skAwait(label: label, timeoutSeconds: timeoutSeconds, work: work),
+        onSuccess: onSuccess,
+        onError: onError
+    )
+}
+
+func skBlockOnMainActorAsync<T>(
+    label: String,
+    work: @escaping @MainActor () async throws -> T,
+    onSuccess: (T) -> Void,
+    onError: (Error) -> Void
+) -> Int32 {
+    skComplete(
+        skAwaitMainActor(label: label, work: work),
+        onSuccess: onSuccess,
+        onError: onError
+    )
 }
 
 func skFormatDate(_ date: Date) -> String {
     skDateFormatter.string(from: date)
 }
 
+@MainActor
 func skKeyWindowController() -> NSViewController? {
     let windows = NSApplication.shared.windows
     return windows.first(where: { $0.isKeyWindow })?.contentViewController

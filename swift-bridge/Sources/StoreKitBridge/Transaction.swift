@@ -496,6 +496,7 @@ public func sk_transaction_finish(
 
     let box: SKTransactionBox = sk_borrow(transaction)
     return skBlockOnAsync(
+        label: "Transaction.finish()",
         work: {
             let verifiedTransaction = try box.verifiedTransaction()
             await verifiedTransaction.finish()
@@ -522,18 +523,18 @@ public func sk_transaction_latest_for(
 
     let productIDString = String(cString: productID)
     return skBlockOnAsync(
-        work: {
+        label: "Transaction.latest(for:)",
+        work: { () async throws -> SKTransactionOutcome? in
             guard let result = await Transaction.latest(for: productIDString) else {
-                return nil as String?
+                return nil
             }
-            let box = SKTransactionBox(result: result)
-            outTransaction?.pointee = sk_retain(box)
-            return try skEncodeJSON(skTransactionVerificationResultPayload(from: result))
+            return SKTransactionOutcome(
+                json: try skEncodeJSON(skTransactionVerificationResultPayload(from: result)),
+                transaction: SKTransactionBox(result: result)
+            )
         },
-        onSuccess: { json in
-            if let json {
-                outResultJSON?.pointee = skCString(json)
-            }
+        onSuccess: { outcome in
+            skWriteTransactionOutcome(outcome, outTransaction: outTransaction, outResultJSON: outResultJSON)
         },
         onError: { error in
             skPopulateError(outError, with: error)
@@ -556,18 +557,18 @@ public func sk_transaction_current_entitlement_for(
 
     let productIDString = String(cString: productID)
     return skBlockOnAsync(
-        work: {
+        label: "Transaction.currentEntitlement(for:)",
+        work: { () async throws -> SKTransactionOutcome? in
             guard let result = await Transaction.currentEntitlement(for: productIDString) else {
-                return nil as String?
+                return nil
             }
-            let box = SKTransactionBox(result: result)
-            outTransaction?.pointee = sk_retain(box)
-            return try skEncodeJSON(skTransactionVerificationResultPayload(from: result))
+            return SKTransactionOutcome(
+                json: try skEncodeJSON(skTransactionVerificationResultPayload(from: result)),
+                transaction: SKTransactionBox(result: result)
+            )
         },
-        onSuccess: { json in
-            if let json {
-                outResultJSON?.pointee = skCString(json)
-            }
+        onSuccess: { outcome in
+            skWriteTransactionOutcome(outcome, outTransaction: outTransaction, outResultJSON: outResultJSON)
         },
         onError: { error in
             skPopulateError(outError, with: error)

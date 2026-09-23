@@ -50,21 +50,36 @@ public func sk_app_store_show_manage_subscriptions(
     return error.statusCode
 }
 
+@MainActor
+func skRequestReview() throws {
+    guard #available(macOS 13.0, *) else {
+        throw SKBridgeError.notSupported("AppStore.requestReview(in:) requires macOS 13.0+")
+    }
+    guard let controller = skKeyWindowController() else {
+        throw SKBridgeError.notSupported(
+            "AppStore.requestReview(in:) requires an NSViewController-backed window"
+        )
+    }
+    AppStore.requestReview(in: controller)
+}
+
 @_cdecl("sk_app_store_request_review")
 public func sk_app_store_request_review(
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    skBlockOnMainActorAsync(
+    if Thread.isMainThread {
+        return skComplete(
+            Result { try MainActor.assumeIsolated { try skRequestReview() } },
+            onSuccess: { (_: Void) in },
+            onError: { error in
+                skPopulateError(outError, with: error)
+            }
+        )
+    }
+    return skBlockOnMainActorAsync(
+        label: "AppStore.requestReview(in:)",
         work: {
-            guard #available(macOS 13.0, *) else {
-                throw SKBridgeError.notSupported("AppStore.requestReview(in:) requires macOS 13.0+")
-            }
-            guard let controller = skKeyWindowController() else {
-                throw SKBridgeError.notSupported(
-                    "AppStore.requestReview(in:) requires an NSViewController-backed window"
-                )
-            }
-            AppStore.requestReview(in: controller)
+            try skRequestReview()
         },
         onSuccess: { (_: Void) in },
         onError: { error in
@@ -77,13 +92,16 @@ public func sk_app_store_request_review(
 public func sk_app_store_present_offer_code_redeem_sheet(
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    skBlockOnMainActorAsync(
+    guard #available(macOS 15.0, *) else {
+        let error = SKBridgeError.notSupported(
+            "AppStore.presentOfferCodeRedeemSheet(from:) requires macOS 15.0+"
+        )
+        skPopulateError(outError, with: error)
+        return error.statusCode
+    }
+    return skBlockOnMainActorAsync(
+        label: "AppStore.presentOfferCodeRedeemSheet(from:)",
         work: {
-            guard #available(macOS 15.0, *) else {
-                throw SKBridgeError.notSupported(
-                    "AppStore.presentOfferCodeRedeemSheet(from:) requires macOS 15.0+"
-                )
-            }
             guard let controller = skKeyWindowController() else {
                 throw SKBridgeError.notSupported(
                     "AppStore.presentOfferCodeRedeemSheet(from:) requires an NSViewController-backed window"

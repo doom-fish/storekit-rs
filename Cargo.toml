@@ -59,6 +59,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 [badges]
 maintenance = { status = "actively-developed" }
 
+[[test]]
+name = "main_thread_tests"
+harness = false
+
 [[example]]
 name = "20_async_products"
 required-features = ["async"]

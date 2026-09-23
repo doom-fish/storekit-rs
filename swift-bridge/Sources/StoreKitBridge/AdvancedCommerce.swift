@@ -192,6 +192,34 @@ public func sk_app_store_age_rating_code(
     )
 }
 
+@available(macOS 26.2, *)
+func skMerchandisingOutcome(
+    from result: AppStoreMerchandisingKind.PresentationResult
+) throws -> SKTransactionOutcome {
+    switch result {
+    case .dismissed:
+        return SKTransactionOutcome(
+            json: try skEncodeJSON(
+                SKAppStoreMerchandisingPresentationResultPayload(kind: "dismissed", purchaseResult: nil)
+            ),
+            transaction: nil
+        )
+    case .purchaseCompleted(let purchaseResult):
+        let parts = try skPurchaseResultParts(from: purchaseResult)
+        return SKTransactionOutcome(
+            json: try skEncodeJSON(
+                SKAppStoreMerchandisingPresentationResultPayload(
+                    kind: "purchaseCompleted",
+                    purchaseResult: parts.payload
+                )
+            ),
+            transaction: parts.transaction
+        )
+    @unknown default:
+        throw SKBridgeError.unknown("StoreKit returned an unknown merchandising result")
+    }
+}
+
 @_cdecl("sk_app_store_present_merchandising")
 public func sk_app_store_present_merchandising(
     _ kindJSON: UnsafePointer<CChar>?,
@@ -200,51 +228,32 @@ public func sk_app_store_present_merchandising(
     _ outResultJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    let payload: SKAppStoreMerchandisingKindPayload
+    guard #available(macOS 26.2, *) else {
+        let error = SKBridgeError.notSupported("AppStore.presentMerchandising(_:from:) requires macOS 26.2+")
+        skPopulateError(outError, with: error)
+        return error.statusCode
+    }
+
+    let merchandisingKind: AppStoreMerchandisingKind
+    let confirmedWindow: NSWindow
     do {
-        payload = try skDecodeJSON(kindJSON, as: SKAppStoreMerchandisingKindPayload.self)
+        let payload = try skDecodeJSON(kindJSON, as: SKAppStoreMerchandisingKindPayload.self)
+        merchandisingKind = try skBuildAppStoreMerchandisingKind(from: payload)
+        confirmedWindow = try skBorrowWindow(window, context: "AppStore.presentMerchandising(_:from:)")
     } catch {
         skPopulateError(outError, with: error)
         return skStatus(for: error)
     }
 
     return skBlockOnMainActorAsync(
+        label: "AppStore.presentMerchandising(_:from:)",
         work: {
-            guard #available(macOS 26.2, *) else {
-                throw SKBridgeError.notSupported(
-                    "AppStore.presentMerchandising(_:from:) requires macOS 26.2+"
-                )
-            }
-            let merchandisingKind = try skBuildAppStoreMerchandisingKind(from: payload)
-            let confirmedWindow: NSWindow = try skBorrowWindow(
-                window,
-                context: "AppStore.presentMerchandising(_:from:)"
+            try skMerchandisingOutcome(
+                from: try await AppStore.presentMerchandising(merchandisingKind, from: confirmedWindow)
             )
-            let result = try await AppStore.presentMerchandising(merchandisingKind, from: confirmedWindow)
-            switch result {
-            case .dismissed:
-                return try skEncodeJSON(
-                    SKAppStoreMerchandisingPresentationResultPayload(
-                        kind: "dismissed",
-                        purchaseResult: nil
-                    )
-                )
-            case .purchaseCompleted(let purchaseResult):
-                return try skEncodeJSON(
-                    SKAppStoreMerchandisingPresentationResultPayload(
-                        kind: "purchaseCompleted",
-                        purchaseResult: try skPurchaseResultPayload(
-                            from: purchaseResult,
-                            outTransaction: outTransaction
-                        )
-                    )
-                )
-            @unknown default:
-                throw SKBridgeError.unknown("StoreKit returned an unknown merchandising result")
-            }
         },
-        onSuccess: { json in
-            outResultJSON?.pointee = skCString(json)
+        onSuccess: { outcome in
+            skWriteTransactionOutcome(outcome, outTransaction: outTransaction, outResultJSON: outResultJSON)
         },
         onError: { error in
             skPopulateError(outError, with: error)
@@ -292,6 +301,13 @@ public func sk_advanced_commerce_product_purchase(
     _ outResultJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    guard #available(macOS 15.4, *) else {
+        let error = SKBridgeError.notSupported(
+            "AdvancedCommerceProduct.purchase(compactJWS:confirmIn:options:) requires macOS 15.4+"
+        )
+        skPopulateError(outError, with: error)
+        return error.statusCode
+    }
     guard let productID, let compactJWS else {
         let error = SKBridgeError.invalidArgument(
             "missing advanced-commerce purchase arguments"
@@ -299,45 +315,39 @@ public func sk_advanced_commerce_product_purchase(
         skPopulateError(outError, with: error)
         return error.statusCode
     }
+    let productIDString = String(cString: productID)
+    let compactJWSString = String(cString: compactJWS)
 
-    let optionPayloads: [SKAdvancedCommercePurchaseOptionPayload]
+    let options: Set<AdvancedCommerceProduct.PurchaseOption>
+    let confirmedWindow: NSWindow
     do {
-        optionPayloads = try skDecodeJSONIfPresent(
+        let optionPayloads = try skDecodeJSONIfPresent(
             optionsJSON,
             as: [SKAdvancedCommercePurchaseOptionPayload].self
         ) ?? []
+        options = try skBuildAdvancedCommercePurchaseOptions(from: optionPayloads)
+        confirmedWindow = try skBorrowWindow(
+            window,
+            context: "AdvancedCommerceProduct.purchase(compactJWS:confirmIn:options:)"
+        )
     } catch {
         skPopulateError(outError, with: error)
         return skStatus(for: error)
     }
 
-    let productIDString = String(cString: productID)
-    let compactJWSString = String(cString: compactJWS)
     return skBlockOnMainActorAsync(
-        timeoutSeconds: 60,
+        label: "AdvancedCommerceProduct.purchase(compactJWS:confirmIn:options:)",
         work: {
-            guard #available(macOS 15.4, *) else {
-                throw SKBridgeError.notSupported(
-                    "AdvancedCommerceProduct.purchase(compactJWS:confirmIn:options:) requires macOS 15.4+"
-                )
-            }
-            let confirmedWindow: NSWindow = try skBorrowWindow(
-                window,
-                context: "AdvancedCommerceProduct.purchase(compactJWS:confirmIn:options:)"
-            )
             let product = try await AdvancedCommerceProduct(id: productIDString)
-            let options = try skBuildAdvancedCommercePurchaseOptions(from: optionPayloads)
             let result = try await product.purchase(
                 compactJWS: compactJWSString,
                 confirmIn: confirmedWindow,
                 options: options
             )
-            return try skEncodeJSON(
-                try skPurchaseResultPayload(from: result, outTransaction: outTransaction)
-            )
+            return try skPurchaseOutcome(from: result)
         },
-        onSuccess: { json in
-            outResultJSON?.pointee = skCString(json)
+        onSuccess: { outcome in
+            skWriteTransactionOutcome(outcome, outTransaction: outTransaction, outResultJSON: outResultJSON)
         },
         onError: { error in
             skPopulateError(outError, with: error)

@@ -109,14 +109,8 @@ public func sk_product_purchase_async(
         do {
             let product = try await skSingleProduct(for: idStr)
             let options = try skBuildPurchaseOptions(from: optionPayloads, product: product)
-            var transactionHandle: UnsafeMutableRawPointer? = nil
-            let result = try await product.purchase(options: options)
-            let payload = try skPurchaseResultPayload(
-                from: result,
-                outTransaction: &transactionHandle
-            )
-            let json = try skEncodeJSON(payload)
-            let box = SKPurchaseAsyncResult(json: json, handle: transactionHandle)
+            let outcome = try skPurchaseOutcome(from: try await product.purchase(options: options))
+            let box = SKPurchaseAsyncResult(json: outcome.json, handle: outcome.transaction.map { sk_retain($0) })
             cb(Unmanaged.passRetained(box).toOpaque(), nil, ctx)
         } catch {
             error.localizedDescription.withCString { ptr in cb(nil, ptr, ctx) }

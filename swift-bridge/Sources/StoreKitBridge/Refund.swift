@@ -30,6 +30,7 @@ public func sk_refund_begin_request_for_transaction_id(
     }
 
     return skBlockOnMainActorAsync(
+        label: "Transaction.beginRefundRequest(for:in:)",
         work: {
             guard let controller = skKeyWindowController() else {
                 throw SKBridgeError.notSupported(
