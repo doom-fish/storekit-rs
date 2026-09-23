@@ -45,8 +45,9 @@ impl ExternalPurchase {
     pub fn can_present() -> Result<bool, StoreKitError> {
         let mut raw_value = 0;
         let mut error_message = ptr::null_mut();
-        let status =
-            unsafe { ffi::sk_external_purchase_can_present(&raw mut raw_value, &raw mut error_message) };
+        let status = unsafe {
+            ffi::sk_external_purchase_can_present(&raw mut raw_value, &raw mut error_message)
+        };
         if status == ffi::status::OK {
             Ok(raw_value != 0)
         } else {
@@ -86,8 +87,9 @@ impl ExternalPurchaseLink {
     pub fn can_open() -> Result<bool, StoreKitError> {
         let mut raw_value = 0;
         let mut error_message = ptr::null_mut();
-        let status =
-            unsafe { ffi::sk_external_purchase_link_can_open(&raw mut raw_value, &raw mut error_message) };
+        let status = unsafe {
+            ffi::sk_external_purchase_link_can_open(&raw mut raw_value, &raw mut error_message)
+        };
         if status == ffi::status::OK {
             Ok(raw_value != 0)
         } else {
@@ -100,7 +102,10 @@ impl ExternalPurchaseLink {
         let mut urls_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
         let status = unsafe {
-            ffi::sk_external_purchase_link_eligible_urls_json(&raw mut urls_json, &raw mut error_message)
+            ffi::sk_external_purchase_link_eligible_urls_json(
+                &raw mut urls_json,
+                &raw mut error_message,
+            )
         };
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
@@ -125,8 +130,9 @@ impl ExternalPurchaseLink {
     pub fn open_url(url: &str) -> Result<(), StoreKitError> {
         let url = cstring_from_str(url, "external purchase URL")?;
         let mut error_message = ptr::null_mut();
-        let status =
-            unsafe { ffi::sk_external_purchase_link_open_url(url.as_ptr(), &raw mut error_message) };
+        let status = unsafe {
+            ffi::sk_external_purchase_link_open_url(url.as_ptr(), &raw mut error_message)
+        };
         if status == ffi::status::OK {
             Ok(())
         } else {
@@ -196,7 +202,10 @@ impl ExternalPurchaseCustomLink {
         let mut raw_value = 0;
         let mut error_message = ptr::null_mut();
         let status = unsafe {
-            ffi::sk_external_purchase_custom_link_is_eligible(&raw mut raw_value, &raw mut error_message)
+            ffi::sk_external_purchase_custom_link_is_eligible(
+                &raw mut raw_value,
+                &raw mut error_message,
+            )
         };
         if status == ffi::status::OK {
             Ok(raw_value != 0)

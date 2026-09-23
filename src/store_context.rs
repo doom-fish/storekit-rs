@@ -36,7 +36,8 @@ impl StoreContext {
     pub fn current() -> Result<Self, StoreKitError> {
         let mut context_json = core::ptr::null_mut();
         let mut error_message = core::ptr::null_mut();
-        let status = unsafe { ffi::sk_store_context_json(&raw mut context_json, &raw mut error_message) };
+        let status =
+            unsafe { ffi::sk_store_context_json(&raw mut context_json, &raw mut error_message) };
         if status != ffi::status::OK {
             return Err(unsafe { crate::private::error_from_status(status, error_message) });
         }

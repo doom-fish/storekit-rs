@@ -55,7 +55,11 @@ impl AppStore {
         let mut has_value = 0;
         let mut error_message = ptr::null_mut();
         let status = unsafe {
-            ffi::sk_app_store_age_rating_code(&raw mut raw_value, &raw mut has_value, &raw mut error_message)
+            ffi::sk_app_store_age_rating_code(
+                &raw mut raw_value,
+                &raw mut has_value,
+                &raw mut error_message,
+            )
         };
         if status == ffi::status::OK {
             Ok((has_value != 0).then_some(raw_value))

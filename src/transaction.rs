@@ -553,8 +553,9 @@ impl TransactionStream {
     fn new(config: &TransactionStreamConfig) -> Result<Self, StoreKitError> {
         let config_json = json_cstring(config, "transaction stream config")?;
         let mut error_message = ptr::null_mut();
-        let handle =
-            unsafe { ffi::sk_transaction_stream_create(config_json.as_ptr(), &raw mut error_message) };
+        let handle = unsafe {
+            ffi::sk_transaction_stream_create(config_json.as_ptr(), &raw mut error_message)
+        };
         let handle = NonNull::new(handle)
             .ok_or_else(|| unsafe { error_from_status(ffi::status::UNKNOWN, error_message) })?;
         Ok(Self {

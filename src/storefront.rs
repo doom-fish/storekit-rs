@@ -28,8 +28,9 @@ impl Storefront {
     pub fn current() -> Result<Option<Self>, StoreKitError> {
         let mut storefront_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
-        let status =
-            unsafe { ffi::sk_storefront_current_json(&raw mut storefront_json, &raw mut error_message) };
+        let status = unsafe {
+            ffi::sk_storefront_current_json(&raw mut storefront_json, &raw mut error_message)
+        };
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
         }

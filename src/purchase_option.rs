@@ -6,7 +6,11 @@ use crate::transaction::{Transaction, TransactionHandle, TransactionPayload};
 use crate::verification_result::{VerificationResult, VerificationResultPayload};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 /// Represents options passed to `StoreKit.Product.purchase(options:)`.
 pub enum PurchaseOption {
     /// Represents the `AppAccountToken` `StoreKit` case.

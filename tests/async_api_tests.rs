@@ -32,7 +32,8 @@ mod async_tests {
         let _: fn(
             &AppStoreMerchandisingKind,
             &NSWindowHandle,
-        ) -> Result<PresentMerchandisingFuture, StoreKitError> = AsyncAppStore::present_merchandising;
+        ) -> Result<PresentMerchandisingFuture, StoreKitError> =
+            AsyncAppStore::present_merchandising;
     }
 
     // -----------------------------------------------------------------------

@@ -58,8 +58,9 @@ impl AppTransaction {
     pub fn refresh() -> Result<VerificationResult<Self>, StoreKitError> {
         let mut result_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
-        let status =
-            unsafe { ffi::sk_app_transaction_refresh(&raw mut result_json, &raw mut error_message) };
+        let status = unsafe {
+            ffi::sk_app_transaction_refresh(&raw mut result_json, &raw mut error_message)
+        };
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
         }

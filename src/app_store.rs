@@ -85,8 +85,9 @@ impl AppStore {
     pub fn can_make_payments() -> Result<bool, StoreKitError> {
         let mut raw_value = 0;
         let mut error_message = ptr::null_mut();
-        let status =
-            unsafe { ffi::sk_app_store_can_make_payments(&raw mut raw_value, &raw mut error_message) };
+        let status = unsafe {
+            ffi::sk_app_store_can_make_payments(&raw mut raw_value, &raw mut error_message)
+        };
         if status == ffi::status::OK {
             Ok(raw_value != 0)
         } else {
@@ -98,8 +99,9 @@ impl AppStore {
     pub fn device_verification_id() -> Result<Option<String>, StoreKitError> {
         let mut uuid_ptr = ptr::null_mut();
         let mut error_message = ptr::null_mut();
-        let status =
-            unsafe { ffi::sk_app_store_device_verification_id(&raw mut uuid_ptr, &raw mut error_message) };
+        let status = unsafe {
+            ffi::sk_app_store_device_verification_id(&raw mut uuid_ptr, &raw mut error_message)
+        };
         if status == ffi::status::OK {
             Ok(unsafe { take_string(uuid_ptr) })
         } else {
