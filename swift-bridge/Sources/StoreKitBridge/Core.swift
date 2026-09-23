@@ -540,7 +540,7 @@ final class SKStreamQueue<Element> {
 }
 
 final class SKStreamBox<Element> {
-    private let queue = SKStreamQueue<Element>()
+    let queue = SKStreamQueue<Element>()
     private var task: Task<Void, Never>?
 
     init(produce: @escaping (SKStreamQueue<Element>) async -> Void) {
@@ -554,10 +554,6 @@ final class SKStreamBox<Element> {
     deinit {
         task?.cancel()
         queue.finish()
-    }
-
-    func next(timeoutMilliseconds: Int64) -> SKStreamNext<Element> {
-        queue.next(timeoutMilliseconds: timeoutMilliseconds)
     }
 }
 

@@ -371,7 +371,7 @@ public func sk_transaction_stream_next(
     }
 
     let box: SKStreamBox<SKTransactionBox> = sk_borrow(stream)
-    switch box.next(timeoutMilliseconds: timeoutMilliseconds) {
+    switch box.queue.next(timeoutMilliseconds: timeoutMilliseconds) {
     case .item(let transactionBox):
         guard let json = try? skEncodeJSON(skTransactionVerificationResultPayload(from: transactionBox.result)) else {
             let error = SKBridgeError.unknown("failed to encode transaction verification payload")

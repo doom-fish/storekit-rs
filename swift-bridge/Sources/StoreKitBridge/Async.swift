@@ -72,10 +72,6 @@ func skRunMainActorAsync(
     }
 }
 
-func skJSONOutcome(_ json: String) -> SKTransactionOutcome {
-    SKTransactionOutcome(json: json, transaction: nil)
-}
-
 // MARK: - Product.products(for:) async throws -> [Product]
 
 @_cdecl("sk_products_async")
@@ -93,7 +89,10 @@ public func sk_products_async(
     }
     skRunAsync(cb, ctx) {
         let products = try await Product.products(for: identifiers)
-        return skJSONOutcome(try skEncodeJSON(products.map(skProductPayload(from:))))
+        return SKTransactionOutcome(
+            json: try skEncodeJSON(products.map(skProductPayload(from:))),
+            transaction: nil
+        )
     }
 }
 
@@ -258,7 +257,10 @@ public func sk_app_transaction_shared_async(
     }
     skRunAsync(cb, ctx) {
         let shared = try await AppTransaction.shared
-        return skJSONOutcome(try skEncodeJSON(skAppTransactionVerificationResultPayload(from: shared)))
+        return SKTransactionOutcome(
+            json: try skEncodeJSON(skAppTransactionVerificationResultPayload(from: shared)),
+            transaction: nil
+        )
     }
 }
 
@@ -275,8 +277,9 @@ public func sk_storefront_current_async(
 ) {
     skRunAsync(cb, ctx) {
         let current = await Storefront.current
-        return skJSONOutcome(
-            try skEncodeJSON(SKStorefrontCurrentResult(storefront: current.map(skStorefrontPayload(from:))))
+        return SKTransactionOutcome(
+            json: try skEncodeJSON(SKStorefrontCurrentResult(storefront: current.map(skStorefrontPayload(from:)))),
+            transaction: nil
         )
     }
 }

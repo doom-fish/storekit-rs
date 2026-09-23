@@ -74,7 +74,7 @@ public func sk_storefront_stream_next(
         return error.statusCode
     }
     let box: SKStreamBox<SKStorefrontPayload> = sk_borrow(stream)
-    switch box.next(timeoutMilliseconds: timeoutMilliseconds) {
+    switch box.queue.next(timeoutMilliseconds: timeoutMilliseconds) {
     case .item(let payload):
         if let json = try? skEncodeJSON(payload) {
             outStorefrontJSON?.pointee = skCString(json)

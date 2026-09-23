@@ -317,18 +317,14 @@ impl TransactionHandle {
         NonNull::new(ptr).map(Self)
     }
 
-    const fn as_ptr(&self) -> *mut c_void {
-        self.0.as_ptr()
-    }
-
     fn try_clone(&self) -> Option<Self> {
-        NonNull::new(unsafe { ffi::sk_transaction_retain(self.as_ptr()) }).map(Self)
+        NonNull::new(unsafe { ffi::sk_transaction_retain(self.0.as_ptr()) }).map(Self)
     }
 }
 
 impl Drop for TransactionHandle {
     fn drop(&mut self) {
-        unsafe { ffi::sk_transaction_release(self.as_ptr()) };
+        unsafe { ffi::sk_transaction_release(self.0.as_ptr()) };
     }
 }
 
@@ -475,8 +471,9 @@ impl Transaction {
             },
             |handle| {
                 let mut error_message = ptr::null_mut();
-                let status =
-                    unsafe { ffi::sk_transaction_verify(handle.as_ptr(), &raw mut error_message) };
+                let status = unsafe {
+                    ffi::sk_transaction_verify(handle.0.as_ptr(), &raw mut error_message)
+                };
                 if status == ffi::status::OK {
                     Ok(())
                 } else {
@@ -497,7 +494,7 @@ impl Transaction {
             },
             |handle| {
                 let mut error_message = ptr::null_mut();
-                let status = unsafe { ffi::sk_transaction_finish(handle.as_ptr(), &raw mut error_message) };
+                let status = unsafe { ffi::sk_transaction_finish(handle.0.as_ptr(), &raw mut error_message) };
                 if status == ffi::status::OK {
                     Ok(())
                 } else {

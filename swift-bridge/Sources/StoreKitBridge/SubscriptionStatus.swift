@@ -41,7 +41,7 @@ public func sk_subscription_status_stream_next(
     }
 
     let box: SKStreamBox<SKSubscriptionStatusPayload> = sk_borrow(stream)
-    switch box.next(timeoutMilliseconds: timeoutMilliseconds) {
+    switch box.queue.next(timeoutMilliseconds: timeoutMilliseconds) {
     case .item(let payload):
         if let json = try? skEncodeJSON(payload) {
             outStatusJSON?.pointee = skCString(json)
@@ -103,7 +103,7 @@ public func sk_subscription_group_status_stream_next(
     }
 
     let box: SKStreamBox<SKSubscriptionGroupStatusesPayload> = sk_borrow(stream)
-    switch box.next(timeoutMilliseconds: timeoutMilliseconds) {
+    switch box.queue.next(timeoutMilliseconds: timeoutMilliseconds) {
     case .item(let payload):
         if let json = try? skEncodeJSON(payload) {
             outPayloadJSON?.pointee = skCString(json)
