@@ -51,3 +51,20 @@ fn dropping_an_update_stream_while_it_is_idle_is_safe() {
         drop(updates);
     }
 }
+
+#[test]
+fn huge_timeouts_wait_instead_of_failing() {
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let mut updates = Transaction::updates().expect("Transaction.updates stream");
+        let _ = sender.send(
+            updates
+                .next_timeout(Duration::MAX)
+                .map(|next| next.is_some()),
+        );
+    });
+    match receiver.recv_timeout(Duration::from_millis(200)) {
+        Err(mpsc::RecvTimeoutError::Timeout) | Ok(Ok(true)) => {}
+        other => panic!("a huge timeout returned early: {other:?}"),
+    }
+}

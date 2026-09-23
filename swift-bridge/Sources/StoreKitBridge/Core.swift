@@ -517,7 +517,7 @@ final class SKStreamQueue<Element> {
     func next(timeoutMilliseconds: Int64) -> SKStreamNext<Element> {
         let deadline = timeoutMilliseconds < 0
             ? nil
-            : Date(timeIntervalSinceNow: TimeInterval(timeoutMilliseconds) / 1000)
+            : min(Date(timeIntervalSinceNow: TimeInterval(timeoutMilliseconds) / 1000), Date.distantFuture)
         condition.lock()
         defer { condition.unlock() }
         while true {
