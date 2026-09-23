@@ -465,6 +465,7 @@ impl VerificationResult<Transaction> {
     pub fn advanced_commerce_info(
         &self,
     ) -> Result<Option<TransactionAdvancedCommerceInfo>, StoreKitError> {
+        self.payload_value()?;
         parse_transaction_advanced_commerce_info_payload(&self.metadata().payload_data)
     }
 }
@@ -474,6 +475,7 @@ impl VerificationResult<RenewalInfo> {
     pub fn advanced_commerce_info(
         &self,
     ) -> Result<Option<RenewalInfoAdvancedCommerceInfo>, StoreKitError> {
+        self.payload_value()?;
         parse_renewal_advanced_commerce_info_payload(&self.metadata().payload_data)
     }
 }

@@ -12,18 +12,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         use storekit::async_api::AsyncAppTransaction;
 
         match AsyncAppTransaction::shared().await {
-            Ok(vr) => {
-                let app_tx = vr.payload();
-                println!("AsyncAppTransaction: bundle={}", app_tx.bundle_id);
-                println!("  app_version   : {}", app_tx.app_version);
-                println!("  environment   : {}", app_tx.environment.as_str());
-                if !vr.is_verified() {
-                    println!(
-                        "  (verification failed — expected in dev; failure={:?})",
-                        vr.verification_failure()
-                    );
+            Ok(vr) => match vr.payload_value() {
+                Ok(app_tx) => {
+                    println!("AsyncAppTransaction: bundle={}", app_tx.bundle_id);
+                    println!("  app_version   : {}", app_tx.app_version);
+                    println!("  environment   : {}", app_tx.environment.as_str());
                 }
-            }
+                Err(error) => {
+                    println!("  (verification failed — expected in dev; failure={error})");
+                }
+            },
             Err(e) => {
                 println!(
                     "AppTransaction fetch failed (expected without App Store session): {e}"

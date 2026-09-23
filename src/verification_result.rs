@@ -58,15 +58,29 @@ impl<T> VerificationResult<T> {
         matches!(self, Self::Verified { .. })
     }
 
+    pub fn payload_value(&self) -> Result<&T, StoreKitError> {
+        match self {
+            Self::Verified { payload, .. } => Ok(payload),
+            Self::Unverified { failure, .. } => Err(StoreKitError::Verification(failure.clone())),
+        }
+    }
+
+    pub fn into_payload_value(self) -> Result<T, StoreKitError> {
+        match self {
+            Self::Verified { payload, .. } => Ok(payload),
+            Self::Unverified { failure, .. } => Err(StoreKitError::Verification(failure)),
+        }
+    }
+
     /// Returns the decoded payload returned by `StoreKit`.
-    pub const fn payload(&self) -> &T {
+    pub const fn unverified_payload(&self) -> &T {
         match self {
             Self::Verified { payload, .. } | Self::Unverified { payload, .. } => payload,
         }
     }
 
     /// Consumes the wrapper and returns the decoded `StoreKit` payload.
-    pub fn into_payload(self) -> T {
+    pub fn into_unverified_payload(self) -> T {
         match self {
             Self::Verified { payload, .. } | Self::Unverified { payload, .. } => payload,
         }

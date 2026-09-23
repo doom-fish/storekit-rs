@@ -22,7 +22,8 @@ fn main() {
     };
 
     println!("verified: {}", result.is_verified());
-    println!("payload: {:?}", result.payload());
+    println!("checked payload: {:?}", result.payload_value());
+    println!("unverified payload: {:?}", result.unverified_payload());
     println!("jws: {}", result.jws_representation());
     println!("failure: {:?}", result.verification_failure());
 }

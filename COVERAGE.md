@@ -36,7 +36,7 @@ Legend:
 | `Transaction.all(for:)` | ✅ | `Transaction::all_for(...)` via filtered stream |
 | `Transaction.currentEntitlements(for:)` | ✅ | `Transaction::current_entitlements_for(...)` via filtered stream |
 | `Transaction.finish()` | ✅ | `Transaction::finish()` |
-| `VerificationResult<Transaction>.payloadValue` equivalent | ✅ | `VerificationResult<Transaction>` + `Transaction::verify()` |
+| `VerificationResult<Transaction>.payloadValue` equivalent | ✅ | `VerificationResult::payload_value()` + `Transaction::verify()` |
 | Core transaction fields (`id`, `originalID`, dates, quantity, ownership, bundle, JWS, signed date`) | ✅ | Exposed on `TransactionData` |
 | `environment`, `reason`, `storefront`, `offer`, `currencyCode`, `appTransactionID` | ✅ | Exposed when available; absent on older runtimes remain `None` |
 | `beginRefundRequest(for:in:)` | 🟡 | Headless-safe wrapper auto-discovers the first `NSViewController`; returns `NotSupported` without one |
@@ -136,7 +136,7 @@ Legend:
 | API | Status | Notes |
 | --- | --- | --- |
 | `verified` / `unverified` cases | ✅ | `VerificationResult<T>` |
-| `payloadValue` / `unsafePayloadValue` equivalents | ✅ | `payload()`, `into_payload()`, `verification_failure()` |
+| `payloadValue` / `unsafePayloadValue` equivalents | ✅ | `payload_value()` and `into_payload_value()` return the payload only when verified (like the throwing `payloadValue`); `unverified_payload()` and `into_unverified_payload()` are the unchecked `unsafePayloadValue` equivalents; `verification_failure()` |
 | JWS metadata (`jwsRepresentation`, header/payload/signature/signed data, signed date, device verification`) | ✅ | `VerificationMetadata` |
 | `VerificationResult<Transaction>` | ✅ | Purchase, transaction streams, and lookups |
 | `VerificationResult<RenewalInfo>` | ✅ | Subscription status queries |

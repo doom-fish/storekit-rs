@@ -40,7 +40,7 @@
 //! println!("{} product(s) found", products.len());
 //!
 //! let app_tx = AsyncAppTransaction::shared().await?;
-//! println!("bundle: {}", app_tx.payload().bundle_id);
+//! println!("bundle: {}", app_tx.payload_value()?.bundle_id);
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! # })?;
 //! # Ok(())
