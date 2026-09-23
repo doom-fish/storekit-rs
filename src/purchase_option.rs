@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::StoreKitError;
 use crate::subscription_info::BillingPlanType;
-use crate::transaction::{Transaction, TransactionPayload};
+use crate::transaction::{Transaction, TransactionHandle, TransactionPayload};
 use crate::verification_result::{VerificationResult, VerificationResultPayload};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -118,7 +118,7 @@ pub(crate) struct PurchaseResultPayload {
 impl PurchaseResultPayload {
     pub(crate) fn into_purchase_result(
         self,
-        transaction_handle: *mut core::ffi::c_void,
+        transaction_handle: Option<TransactionHandle>,
     ) -> Result<PurchaseResult, StoreKitError> {
         match self.kind.as_str() {
             "success" => {
@@ -133,26 +133,51 @@ impl PurchaseResultPayload {
                 })?;
                 Ok(PurchaseResult::Success(transaction))
             }
-            "userCancelled" => {
-                if !transaction_handle.is_null() {
-                    unsafe { crate::ffi::sk_transaction_release(transaction_handle) };
-                }
-                Ok(PurchaseResult::UserCancelled)
-            }
-            "pending" => {
-                if !transaction_handle.is_null() {
-                    unsafe { crate::ffi::sk_transaction_release(transaction_handle) };
-                }
-                Ok(PurchaseResult::Pending)
-            }
-            other => {
-                if !transaction_handle.is_null() {
-                    unsafe { crate::ffi::sk_transaction_release(transaction_handle) };
-                }
-                Err(StoreKitError::Unknown(format!(
-                    "StoreKit returned an unknown purchase result kind '{other}'"
-                )))
-            }
+            "userCancelled" => Ok(PurchaseResult::UserCancelled),
+            "pending" => Ok(PurchaseResult::Pending),
+            other => Err(StoreKitError::Unknown(format!(
+                "StoreKit returned an unknown purchase result kind '{other}'"
+            ))),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PurchaseResult, PurchaseResultPayload};
+    use crate::error::StoreKitError;
+
+    fn payload(json: &str) -> PurchaseResultPayload {
+        serde_json::from_str(json).expect("valid purchase result payload")
+    }
+
+    #[test]
+    fn cancelled_and_pending_results_carry_no_transaction() {
+        assert!(matches!(
+            payload(r#"{"kind":"userCancelled","verificationResult":null}"#)
+                .into_purchase_result(None),
+            Ok(PurchaseResult::UserCancelled)
+        ));
+        assert!(matches!(
+            payload(r#"{"kind":"pending","verificationResult":null}"#).into_purchase_result(None),
+            Ok(PurchaseResult::Pending)
+        ));
+    }
+
+    #[test]
+    fn success_without_a_verification_result_is_an_error() {
+        let result =
+            payload(r#"{"kind":"success","verificationResult":null}"#).into_purchase_result(None);
+        assert!(matches!(result, Err(StoreKitError::Unknown(_))));
+    }
+
+    #[test]
+    fn unknown_result_kinds_are_errors() {
+        let result =
+            payload(r#"{"kind":"deferred","verificationResult":null}"#).into_purchase_result(None);
+        match result {
+            Err(StoreKitError::Unknown(message)) => assert!(message.contains("deferred")),
+            other => panic!("expected an unknown-kind error, got {other:?}"),
         }
     }
 }

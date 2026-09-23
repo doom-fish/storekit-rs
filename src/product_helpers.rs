@@ -13,7 +13,7 @@ use crate::renewal_state::RenewalState;
 use crate::subscription::{
     SubscriptionOfferType, SubscriptionPaymentMode, SubscriptionPeriod, SubscriptionPeriodUnit,
 };
-use crate::transaction::{OfferType, OwnershipType, RevocationReason};
+use crate::transaction::{OfferType, OwnershipType, RevocationReason, TransactionHandle};
 use crate::window::NSWindowHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,18 +52,10 @@ impl Product {
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
         }
+        let transaction_handle = unsafe { TransactionHandle::from_raw(transaction_handle) };
 
-        let payload =
-            unsafe { parse_json_ptr::<PurchaseResultPayload>(result_json, "purchase result") };
-        match payload {
-            Ok(payload) => payload.into_purchase_result(transaction_handle),
-            Err(error) => {
-                if !transaction_handle.is_null() {
-                    unsafe { ffi::sk_transaction_release(transaction_handle) };
-                }
-                Err(error)
-            }
-        }
+        unsafe { parse_json_ptr::<PurchaseResultPayload>(result_json, "purchase result") }?
+            .into_purchase_result(transaction_handle)
     }
 
     /// Fetches `StoreKit`-provided formatting for this product.

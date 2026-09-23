@@ -19,7 +19,7 @@ pub use crate::subscription_info::{
 
 use crate::purchase_option::PurchaseResultPayload;
 use crate::subscription_info::SubscriptionInfoPayload;
-use crate::transaction::{Transaction, TransactionStream};
+use crate::transaction::{Transaction, TransactionHandle, TransactionStream};
 use crate::verification_result::VerificationResult;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,18 +137,10 @@ impl Product {
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
         }
+        let transaction_handle = unsafe { TransactionHandle::from_raw(transaction_handle) };
 
-        let payload =
-            unsafe { parse_json_ptr::<PurchaseResultPayload>(result_json, "purchase result") };
-        match payload {
-            Ok(payload) => payload.into_purchase_result(transaction_handle),
-            Err(error) => {
-                if !transaction_handle.is_null() {
-                    unsafe { ffi::sk_transaction_release(transaction_handle) };
-                }
-                Err(error)
-            }
-        }
+        unsafe { parse_json_ptr::<PurchaseResultPayload>(result_json, "purchase result") }?
+            .into_purchase_result(transaction_handle)
     }
 
     /// Fetches the latest `StoreKit` transaction for this product.

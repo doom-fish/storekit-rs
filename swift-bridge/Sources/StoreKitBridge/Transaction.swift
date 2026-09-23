@@ -430,14 +430,17 @@ public func sk_transaction_stream_next(
     let box: SKTransactionStreamBox = sk_borrow(stream)
     switch box.next(timeoutMilliseconds: timeoutMilliseconds) {
     case .item(let transactionBox):
-        outTransaction?.pointee = sk_retain(transactionBox)
-        if let json = try? skEncodeJSON(skTransactionVerificationResultPayload(from: transactionBox.result)) {
-            outVerificationJSON?.pointee = skCString(json)
-            return SK_OK
+        guard let json = try? skEncodeJSON(skTransactionVerificationResultPayload(from: transactionBox.result)) else {
+            let error = SKBridgeError.unknown("failed to encode transaction verification payload")
+            skPopulateError(outError, with: error)
+            return error.statusCode
         }
-        let error = SKBridgeError.unknown("failed to encode transaction verification payload")
-        skPopulateError(outError, with: error)
-        return error.statusCode
+        skWriteTransactionOutcome(
+            SKTransactionOutcome(json: json, transaction: transactionBox),
+            outTransaction: outTransaction,
+            outResultJSON: outVerificationJSON
+        )
+        return SK_OK
     case .end:
         return SK_END_OF_STREAM
     case .timedOut:

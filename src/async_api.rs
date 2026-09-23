@@ -61,6 +61,7 @@ use crate::private::{cstring_from_str, json_cstring, parse_json_str, take_string
 use crate::product::{Product, ProductPayload};
 use crate::purchase_option::{PurchaseOption, PurchaseResult, PurchaseResultPayload};
 use crate::storefront::{Storefront, StorefrontPayload};
+use crate::transaction::TransactionHandle;
 use crate::verification_result::{VerificationResult, VerificationResultPayload};
 
 // ============================================================================
@@ -258,15 +259,11 @@ unsafe fn extract_purchase_result(ptr: *mut c_void) -> Result<PurchaseResult, St
     let json = take_string(json_ptr).ok_or_else(|| {
         StoreKitError::InvalidArgument("missing JSON from purchase async result".into())
     })?;
-    let transaction_handle = crate::ffi::sk_purchase_async_result_take_handle(ptr);
+    let transaction_handle =
+        TransactionHandle::from_raw(crate::ffi::sk_purchase_async_result_take_handle(ptr));
 
-    let payload: PurchaseResultPayload =
-        parse_json_str(&json, "purchase result").inspect_err(|_| {
-            if !transaction_handle.is_null() {
-                crate::ffi::sk_transaction_release(transaction_handle);
-            }
-        })?;
-    payload.into_purchase_result(transaction_handle)
+    parse_json_str::<PurchaseResultPayload>(&json, "purchase result")?
+        .into_purchase_result(transaction_handle)
 }
 
 /// Async wrapper for `Product.purchase(options:)`.

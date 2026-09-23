@@ -13,7 +13,7 @@ use crate::product::ProductType;
 use crate::purchase_option::{PurchaseResult, PurchaseResultPayload};
 use crate::renewal_info::RenewalInfo;
 use crate::subscription::{SubscriptionPeriod, SubscriptionPeriodPayload};
-use crate::transaction::{Transaction, TransactionStream};
+use crate::transaction::{Transaction, TransactionHandle, TransactionStream};
 use crate::verification_result::VerificationResult;
 use crate::window::NSWindowHandle;
 
@@ -85,6 +85,7 @@ impl AppStore {
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
         }
+        let transaction_handle = unsafe { TransactionHandle::from_raw(transaction_handle) };
         let payload = unsafe {
             parse_json_ptr::<AppStoreMerchandisingPresentationResultPayload>(
                 result_json,
@@ -168,22 +169,15 @@ impl AdvancedCommerceProduct {
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
         }
+        let transaction_handle = unsafe { TransactionHandle::from_raw(transaction_handle) };
 
-        let payload = unsafe {
+        unsafe {
             parse_json_ptr::<PurchaseResultPayload>(
                 result_json,
                 "advanced commerce purchase result",
             )
-        };
-        match payload {
-            Ok(payload) => payload.into_purchase_result(transaction_handle),
-            Err(error) => {
-                if !transaction_handle.is_null() {
-                    unsafe { ffi::sk_transaction_release(transaction_handle) };
-                }
-                Err(error)
-            }
-        }
+        }?
+        .into_purchase_result(transaction_handle)
     }
 
     /// Fetches the latest `StoreKit` transaction for this advanced-commerce product.
@@ -720,15 +714,10 @@ pub(crate) struct AppStoreMerchandisingPresentationResultPayload {
 impl AppStoreMerchandisingPresentationResultPayload {
     pub(crate) fn into_result(
         self,
-        transaction_handle: *mut c_void,
+        transaction_handle: Option<TransactionHandle>,
     ) -> Result<AppStoreMerchandisingPresentationResult, StoreKitError> {
         match self.kind.as_str() {
-            "dismissed" => {
-                if !transaction_handle.is_null() {
-                    unsafe { ffi::sk_transaction_release(transaction_handle) };
-                }
-                Ok(AppStoreMerchandisingPresentationResult::Dismissed)
-            }
+            "dismissed" => Ok(AppStoreMerchandisingPresentationResult::Dismissed),
             "purchaseCompleted" => {
                 let purchase_result = self.purchase_result.ok_or_else(|| {
                     StoreKitError::Unknown(
@@ -740,14 +729,9 @@ impl AppStoreMerchandisingPresentationResultPayload {
                     purchase_result.into_purchase_result(transaction_handle)?,
                 ))
             }
-            other => {
-                if !transaction_handle.is_null() {
-                    unsafe { ffi::sk_transaction_release(transaction_handle) };
-                }
-                Err(StoreKitError::Unknown(format!(
-                    "unknown App Store merchandising presentation result kind '{other}'"
-                )))
-            }
+            other => Err(StoreKitError::Unknown(format!(
+                "unknown App Store merchandising presentation result kind '{other}'"
+            ))),
         }
     }
 }

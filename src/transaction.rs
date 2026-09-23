@@ -307,37 +307,45 @@ pub struct TransactionData {
 }
 
 #[derive(Debug)]
+pub(crate) struct TransactionHandle(NonNull<c_void>);
+
+unsafe impl Send for TransactionHandle {}
+unsafe impl Sync for TransactionHandle {}
+
+impl TransactionHandle {
+    pub(crate) unsafe fn from_raw(ptr: *mut c_void) -> Option<Self> {
+        NonNull::new(ptr).map(Self)
+    }
+
+    const fn as_ptr(&self) -> *mut c_void {
+        self.0.as_ptr()
+    }
+
+    fn try_clone(&self) -> Option<Self> {
+        NonNull::new(unsafe { ffi::sk_transaction_retain(self.as_ptr()) }).map(Self)
+    }
+}
+
+impl Drop for TransactionHandle {
+    fn drop(&mut self) {
+        unsafe { ffi::sk_transaction_release(self.as_ptr()) };
+    }
+}
+
+#[derive(Debug)]
 /// Wraps a live `StoreKit.Transaction` handle plus decoded payload data.
 pub struct Transaction {
-    handle: Option<NonNull<c_void>>,
+    handle: Option<TransactionHandle>,
     data: TransactionData,
     advanced_commerce_info: Option<TransactionAdvancedCommerceInfo>,
 }
 
 impl Clone for Transaction {
     fn clone(&self) -> Self {
-        let handle = self.handle.map(|handle| {
-            // SAFETY: handle is a valid, non-null StoreKit transaction pointer maintained
-            // by this Transaction.  sk_transaction_retain increments the retain count
-            // and returns the same pointer (never null for a live transaction).
-            let retained = unsafe { ffi::sk_transaction_retain(handle.as_ptr()) };
-            NonNull::new(retained).expect("StoreKit transaction retain returned null")
-        });
         Self {
-            handle,
+            handle: self.handle.as_ref().and_then(TransactionHandle::try_clone),
             data: self.data.clone(),
             advanced_commerce_info: self.advanced_commerce_info.clone(),
-        }
-    }
-}
-
-impl Drop for Transaction {
-    fn drop(&mut self) {
-        if let Some(handle) = self.handle {
-            // SAFETY: handle is a valid, non-null StoreKit transaction pointer that
-            // this Transaction uniquely owns (or co-owns with a matching retain from
-            // Clone).  Drop is the unique release point per ownership token.
-            unsafe { ffi::sk_transaction_release(handle.as_ptr()) };
         }
     }
 }
@@ -392,6 +400,7 @@ impl Transaction {
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
         }
+        let transaction_handle = unsafe { TransactionHandle::from_raw(transaction_handle) };
 
         let payload = unsafe {
             parse_optional_json_ptr::<VerificationResultPayload<TransactionPayload>>(
@@ -425,6 +434,7 @@ impl Transaction {
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
         }
+        let transaction_handle = unsafe { TransactionHandle::from_raw(transaction_handle) };
 
         let payload = unsafe {
             parse_optional_json_ptr::<VerificationResultPayload<TransactionPayload>>(
@@ -456,7 +466,7 @@ impl Transaction {
 
     /// Asks `StoreKit` to verify this transaction again.
     pub fn verify(&self) -> Result<(), StoreKitError> {
-        self.handle.map_or_else(
+        self.handle.as_ref().map_or_else(
             || {
                 self.data
                     .verification_failure
@@ -478,7 +488,7 @@ impl Transaction {
 
     /// Calls `StoreKit.Transaction.finish()`.
     pub fn finish(&self) -> Result<(), StoreKitError> {
-        self.handle.map_or_else(
+        self.handle.as_ref().map_or_else(
             || {
                 Err(StoreKitError::NotSupported(
                     "transaction snapshots cannot be finished because they do not carry a live StoreKit handle"
@@ -503,12 +513,12 @@ impl Transaction {
     }
 
     pub(crate) fn from_raw_parts(
-        handle: *mut c_void,
+        handle: Option<TransactionHandle>,
         payload: TransactionPayload,
     ) -> Result<Self, StoreKitError> {
         let (data, advanced_commerce_info) = payload.into_transaction_parts()?;
         Ok(Self {
-            handle: NonNull::new(handle),
+            handle,
             data,
             advanced_commerce_info,
         })
@@ -584,25 +594,16 @@ impl TransactionStream {
 
         match status {
             ffi::status::OK => {
+                let transaction_handle = unsafe { TransactionHandle::from_raw(transaction_handle) };
                 let payload = unsafe {
                     parse_json_ptr::<VerificationResultPayload<TransactionPayload>>(
                         verification_json,
                         "transaction verification result",
                     )
-                };
-                match payload {
-                    Ok(payload) => payload
-                        .into_result(|payload| {
-                            Transaction::from_raw_parts(transaction_handle, payload)
-                        })
-                        .map(Some),
-                    Err(error) => {
-                        if !transaction_handle.is_null() {
-                            unsafe { ffi::sk_transaction_release(transaction_handle) };
-                        }
-                        Err(error)
-                    }
-                }
+                }?;
+                payload
+                    .into_result(|payload| Transaction::from_raw_parts(transaction_handle, payload))
+                    .map(Some)
             }
             ffi::status::END_OF_STREAM => {
                 self.finished = true;

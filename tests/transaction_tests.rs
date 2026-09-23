@@ -68,3 +68,11 @@ fn transaction_commitment_fields_are_constructible() {
         12
     );
 }
+
+#[test]
+fn transactions_can_move_between_threads() {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<storekit::Transaction>();
+    assert_send_sync::<storekit::VerificationResult<storekit::Transaction>>();
+    assert_send_sync::<storekit::PurchaseResult>();
+}
