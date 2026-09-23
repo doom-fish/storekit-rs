@@ -6,149 +6,17 @@ struct SKSubscriptionGroupStatusesPayload: Codable {
     let statuses: [SKSubscriptionStatusPayload]
 }
 
-final class SKSubscriptionStatusStreamBox {
-    private let stateQueue = DispatchQueue(label: "storekit.subscription-status-stream")
-    private let semaphore = DispatchSemaphore(value: 0)
-    private var queue: [SKSubscriptionStatusPayload] = []
-    private var finished = false
-    private var task: Task<Void, Never>?
-
-    init() {
-        task = Task { [weak self] in
-            guard let self else {
-                return
-            }
-            var iterator = Product.SubscriptionInfo.Status.updates.makeAsyncIterator()
-            while !Task.isCancelled, let next = await iterator.next() {
-                let payload = skSubscriptionStatusPayload(from: next)
-                stateQueue.sync {
-                    self.queue.append(payload)
-                }
-                semaphore.signal()
-            }
-            finishStream()
-        }
-    }
-
-    deinit {
-        task?.cancel()
-        semaphore.signal()
-    }
-
-    private func finishStream() {
-        stateQueue.sync {
-            finished = true
-        }
-        semaphore.signal()
-    }
-
-    func next(timeoutMilliseconds: UInt32) -> SKSubscriptionStatusNextState {
-        while true {
-            let state = stateQueue.sync { () -> (SKSubscriptionStatusPayload?, Bool) in
-                if queue.isEmpty {
-                    return (nil, finished)
-                }
-                return (queue.removeFirst(), finished)
-            }
-
-            if let next = state.0 {
-                return .item(next)
-            }
-            if state.1 {
-                return .end
-            }
-
-            let timeout = DispatchTime.now() + .milliseconds(Int(timeoutMilliseconds))
-            if semaphore.wait(timeout: timeout) == .timedOut {
-                return .timedOut
-            }
-        }
-    }
-}
-
-enum SKSubscriptionStatusNextState {
-    case item(SKSubscriptionStatusPayload)
-    case end
-    case timedOut
-}
-
-final class SKSubscriptionGroupStatusStreamBox {
-    private let stateQueue = DispatchQueue(label: "storekit.subscription-group-status-stream")
-    private let semaphore = DispatchSemaphore(value: 0)
-    private var queue: [SKSubscriptionGroupStatusesPayload] = []
-    private var finished = false
-    private var task: Task<Void, Never>?
-
-    init() throws {
-        guard #available(macOS 14.0, *) else {
-            throw SKBridgeError.notSupported("Product.SubscriptionInfo.Status.all requires macOS 14.0+")
-        }
-        task = Task { [weak self] in
-            guard let self else {
-                return
-            }
-            for await next in Product.SubscriptionInfo.Status.all {
-                let payload = SKSubscriptionGroupStatusesPayload(
-                    groupID: next.groupID,
-                    statuses: next.statuses.map(skSubscriptionStatusPayload(from:))
-                )
-                stateQueue.sync {
-                    self.queue.append(payload)
-                }
-                semaphore.signal()
-            }
-            finishStream()
-        }
-    }
-
-    deinit {
-        task?.cancel()
-        semaphore.signal()
-    }
-
-    private func finishStream() {
-        stateQueue.sync {
-            finished = true
-        }
-        semaphore.signal()
-    }
-
-    func next(timeoutMilliseconds: UInt32) -> SKSubscriptionGroupStatusNextState {
-        while true {
-            let state = stateQueue.sync { () -> (SKSubscriptionGroupStatusesPayload?, Bool) in
-                if queue.isEmpty {
-                    return (nil, finished)
-                }
-                return (queue.removeFirst(), finished)
-            }
-
-            if let next = state.0 {
-                return .item(next)
-            }
-            if state.1 {
-                return .end
-            }
-
-            let timeout = DispatchTime.now() + .milliseconds(Int(timeoutMilliseconds))
-            if semaphore.wait(timeout: timeout) == .timedOut {
-                return .timedOut
-            }
-        }
-    }
-}
-
-enum SKSubscriptionGroupStatusNextState {
-    case item(SKSubscriptionGroupStatusesPayload)
-    case end
-    case timedOut
-}
-
 @_cdecl("sk_subscription_status_stream_create")
 public func sk_subscription_status_stream_create(
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> UnsafeMutableRawPointer? {
     _ = outError
-    return sk_retain(SKSubscriptionStatusStreamBox())
+    return sk_retain(SKStreamBox<SKSubscriptionStatusPayload> { queue in
+        var iterator = Product.SubscriptionInfo.Status.updates.makeAsyncIterator()
+        while !Task.isCancelled, let next = await iterator.next() {
+            queue.push(skSubscriptionStatusPayload(from: next))
+        }
+    })
 }
 
 @_cdecl("sk_subscription_status_stream_release")
@@ -162,7 +30,7 @@ public func sk_subscription_status_stream_release(_ stream: UnsafeMutableRawPoin
 @_cdecl("sk_subscription_status_stream_next")
 public func sk_subscription_status_stream_next(
     _ stream: UnsafeMutableRawPointer?,
-    _ timeoutMilliseconds: UInt32,
+    _ timeoutMilliseconds: Int64,
     _ outStatusJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
@@ -172,7 +40,7 @@ public func sk_subscription_status_stream_next(
         return error.statusCode
     }
 
-    let box: SKSubscriptionStatusStreamBox = sk_borrow(stream)
+    let box: SKStreamBox<SKSubscriptionStatusPayload> = sk_borrow(stream)
     switch box.next(timeoutMilliseconds: timeoutMilliseconds) {
     case .item(let payload):
         if let json = try? skEncodeJSON(payload) {
@@ -193,12 +61,24 @@ public func sk_subscription_status_stream_next(
 public func sk_subscription_group_status_stream_create(
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> UnsafeMutableRawPointer? {
-    do {
-        return sk_retain(try SKSubscriptionGroupStatusStreamBox())
-    } catch {
-        skPopulateError(outError, with: error)
+    guard #available(macOS 14.0, *) else {
+        skPopulateError(
+            outError,
+            with: SKBridgeError.notSupported("Product.SubscriptionInfo.Status.all requires macOS 14.0+")
+        )
         return nil
     }
+    return sk_retain(SKStreamBox<SKSubscriptionGroupStatusesPayload> { queue in
+        var iterator = Product.SubscriptionInfo.Status.all.makeAsyncIterator()
+        while !Task.isCancelled, let next = await iterator.next() {
+            queue.push(
+                SKSubscriptionGroupStatusesPayload(
+                    groupID: next.groupID,
+                    statuses: next.statuses.map(skSubscriptionStatusPayload(from:))
+                )
+            )
+        }
+    })
 }
 
 @_cdecl("sk_subscription_group_status_stream_release")
@@ -212,7 +92,7 @@ public func sk_subscription_group_status_stream_release(_ stream: UnsafeMutableR
 @_cdecl("sk_subscription_group_status_stream_next")
 public func sk_subscription_group_status_stream_next(
     _ stream: UnsafeMutableRawPointer?,
-    _ timeoutMilliseconds: UInt32,
+    _ timeoutMilliseconds: Int64,
     _ outPayloadJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
@@ -222,7 +102,7 @@ public func sk_subscription_group_status_stream_next(
         return error.statusCode
     }
 
-    let box: SKSubscriptionGroupStatusStreamBox = sk_borrow(stream)
+    let box: SKStreamBox<SKSubscriptionGroupStatusesPayload> = sk_borrow(stream)
     switch box.next(timeoutMilliseconds: timeoutMilliseconds) {
     case .item(let payload):
         if let json = try? skEncodeJSON(payload) {

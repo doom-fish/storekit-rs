@@ -45,7 +45,7 @@ extern "C" {
     pub fn sk_transaction_stream_release(stream: *mut c_void);
     pub fn sk_transaction_stream_next(
         stream: *mut c_void,
-        timeout_ms: u32,
+        timeout_ms: i64,
         out_transaction: *mut *mut c_void,
         out_verification_json: *mut *mut c_char,
         out_error_message: *mut *mut c_char,
@@ -108,7 +108,7 @@ extern "C" {
     pub fn sk_storefront_stream_release(stream: *mut c_void);
     pub fn sk_storefront_stream_next(
         stream: *mut c_void,
-        timeout_ms: u32,
+        timeout_ms: i64,
         out_storefront_json: *mut *mut c_char,
         out_error_message: *mut *mut c_char,
     ) -> i32;
@@ -134,7 +134,7 @@ extern "C" {
     pub fn sk_subscription_status_stream_release(stream: *mut c_void);
     pub fn sk_subscription_status_stream_next(
         stream: *mut c_void,
-        timeout_ms: u32,
+        timeout_ms: i64,
         out_status_json: *mut *mut c_char,
         out_error_message: *mut *mut c_char,
     ) -> i32;
@@ -144,7 +144,7 @@ extern "C" {
     pub fn sk_subscription_group_status_stream_release(stream: *mut c_void);
     pub fn sk_subscription_group_status_stream_next(
         stream: *mut c_void,
-        timeout_ms: u32,
+        timeout_ms: i64,
         out_payload_json: *mut *mut c_char,
         out_error_message: *mut *mut c_char,
     ) -> i32;
@@ -164,7 +164,7 @@ extern "C" {
     pub fn sk_purchase_intent_stream_release(stream: *mut c_void);
     pub fn sk_purchase_intent_stream_next(
         stream: *mut c_void,
-        timeout_ms: u32,
+        timeout_ms: i64,
         out_payload_json: *mut *mut c_char,
         out_error_message: *mut *mut c_char,
     ) -> i32;

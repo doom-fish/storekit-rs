@@ -7,7 +7,9 @@ use serde::Deserialize;
 
 use crate::error::StoreKitError;
 use crate::ffi;
-use crate::private::{duration_to_timeout_ms, error_from_status, parse_json_ptr};
+use crate::private::{
+    duration_to_timeout_ms, error_from_status, parse_json_ptr, stream_timed_out, NO_TIMEOUT,
+};
 use crate::subscription_info::{SubscriptionStatus, SubscriptionStatusPayload};
 
 #[derive(Debug, Clone)]
@@ -62,9 +64,9 @@ impl SubscriptionStatusStream {
     }
 
     #[allow(clippy::should_implement_trait)]
-    /// Waits for the next value from the `StoreKit` stream using the default timeout.
+    /// Waits for the next value from the `StoreKit` stream, or for the end of the sequence.
     pub fn next(&mut self) -> Result<Option<SubscriptionStatus>, StoreKitError> {
-        self.next_timeout(Duration::from_secs(30))
+        self.next_with(NO_TIMEOUT)
     }
 
     /// Waits for the next value from the `StoreKit` stream up to the supplied timeout.
@@ -72,12 +74,16 @@ impl SubscriptionStatusStream {
         &mut self,
         timeout: Duration,
     ) -> Result<Option<SubscriptionStatus>, StoreKitError> {
+        self.next_with(duration_to_timeout_ms(timeout))
+    }
+
+    fn next_with(&mut self, timeout_ms: i64) -> Result<Option<SubscriptionStatus>, StoreKitError> {
         let mut status_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
         let status = unsafe {
             ffi::sk_subscription_status_stream_next(
                 self.handle.as_ptr(),
-                duration_to_timeout_ms(timeout),
+                timeout_ms,
                 &raw mut status_json,
                 &raw mut error_message,
             )
@@ -97,7 +103,7 @@ impl SubscriptionStatusStream {
                 self.finished = true;
                 Ok(None)
             }
-            ffi::status::TIMED_OUT => Ok(None),
+            ffi::status::TIMED_OUT => Err(stream_timed_out("subscription status")),
             _ => Err(unsafe { error_from_status(status, error_message) }),
         }
     }
@@ -134,9 +140,9 @@ impl SubscriptionGroupStatusStream {
     }
 
     #[allow(clippy::should_implement_trait)]
-    /// Waits for the next value from the `StoreKit` stream using the default timeout.
+    /// Waits for the next value from the `StoreKit` stream, or for the end of the sequence.
     pub fn next(&mut self) -> Result<Option<SubscriptionGroupStatuses>, StoreKitError> {
-        self.next_timeout(Duration::from_secs(30))
+        self.next_with(NO_TIMEOUT)
     }
 
     /// Waits for the next value from the `StoreKit` stream up to the supplied timeout.
@@ -144,12 +150,16 @@ impl SubscriptionGroupStatusStream {
         &mut self,
         timeout: Duration,
     ) -> Result<Option<SubscriptionGroupStatuses>, StoreKitError> {
+        self.next_with(duration_to_timeout_ms(timeout))
+    }
+
+    fn next_with(&mut self, timeout_ms: i64) -> Result<Option<SubscriptionGroupStatuses>, StoreKitError> {
         let mut payload_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
         let status = unsafe {
             ffi::sk_subscription_group_status_stream_next(
                 self.handle.as_ptr(),
-                duration_to_timeout_ms(timeout),
+                timeout_ms,
                 &raw mut payload_json,
                 &raw mut error_message,
             )
@@ -169,7 +179,7 @@ impl SubscriptionGroupStatusStream {
                 self.finished = true;
                 Ok(None)
             }
-            ffi::status::TIMED_OUT => Ok(None),
+            ffi::status::TIMED_OUT => Err(stream_timed_out("subscription group status")),
             _ => Err(unsafe { error_from_status(status, error_message) }),
         }
     }

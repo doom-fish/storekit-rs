@@ -80,9 +80,16 @@ pub unsafe fn error_from_status(status: i32, err_msg: *mut c_char) -> StoreKitEr
     crate::error::from_swift(status, err_msg)
 }
 
-pub fn duration_to_timeout_ms(duration: Duration) -> u32 {
-    let millis = duration.as_millis();
-    u32::try_from(millis).unwrap_or(u32::MAX)
+pub const NO_TIMEOUT: i64 = -1;
+
+pub fn duration_to_timeout_ms(duration: Duration) -> i64 {
+    i64::try_from(duration.as_millis()).unwrap_or(i64::MAX)
+}
+
+pub fn stream_timed_out(kind: &str) -> StoreKitError {
+    StoreKitError::TimedOut(format!(
+        "no {kind} update arrived before the timeout; the stream is still open"
+    ))
 }
 
 pub fn decode_base64(value: &str, context: &str) -> Result<Vec<u8>, StoreKitError> {

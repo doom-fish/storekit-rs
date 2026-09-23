@@ -7,7 +7,9 @@ use serde::Deserialize;
 
 use crate::error::StoreKitError;
 use crate::ffi;
-use crate::private::{duration_to_timeout_ms, error_from_status, parse_json_ptr};
+use crate::private::{
+    duration_to_timeout_ms, error_from_status, parse_json_ptr, stream_timed_out, NO_TIMEOUT,
+};
 use crate::product::{Product, ProductPayload};
 use crate::subscription::{SubscriptionOffer, SubscriptionOfferPayload};
 
@@ -63,9 +65,9 @@ impl PurchaseIntentStream {
     }
 
     #[allow(clippy::should_implement_trait)]
-    /// Waits for the next value from the `StoreKit` stream using the default timeout.
+    /// Waits for the next value from the `StoreKit` stream, or for the end of the sequence.
     pub fn next(&mut self) -> Result<Option<PurchaseIntent>, StoreKitError> {
-        self.next_timeout(Duration::from_secs(30))
+        self.next_with(NO_TIMEOUT)
     }
 
     /// Waits for the next value from the `StoreKit` stream up to the supplied timeout.
@@ -73,12 +75,16 @@ impl PurchaseIntentStream {
         &mut self,
         timeout: Duration,
     ) -> Result<Option<PurchaseIntent>, StoreKitError> {
+        self.next_with(duration_to_timeout_ms(timeout))
+    }
+
+    fn next_with(&mut self, timeout_ms: i64) -> Result<Option<PurchaseIntent>, StoreKitError> {
         let mut payload_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
         let status = unsafe {
             ffi::sk_purchase_intent_stream_next(
                 self.handle.as_ptr(),
-                duration_to_timeout_ms(timeout),
+                timeout_ms,
                 &raw mut payload_json,
                 &raw mut error_message,
             )
@@ -95,7 +101,7 @@ impl PurchaseIntentStream {
                 self.finished = true;
                 Ok(None)
             }
-            ffi::status::TIMED_OUT => Ok(None),
+            ffi::status::TIMED_OUT => Err(stream_timed_out("purchase intent")),
             _ => Err(unsafe { error_from_status(status, error_message) }),
         }
     }

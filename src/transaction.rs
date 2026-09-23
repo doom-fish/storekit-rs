@@ -13,7 +13,7 @@ use crate::error::{StoreKitError, VerificationFailure};
 use crate::ffi;
 use crate::private::{
     cstring_from_str, decode_base64, duration_to_timeout_ms, error_from_status, json_cstring,
-    parse_json_ptr, parse_optional_json_ptr,
+    parse_json_ptr, parse_optional_json_ptr, stream_timed_out, NO_TIMEOUT,
 };
 use crate::product::ProductType;
 use crate::refund::{Refund, RefundRequestStatus};
@@ -569,9 +569,9 @@ impl TransactionStream {
     }
 
     #[allow(clippy::should_implement_trait)]
-    /// Waits for the next value from the `StoreKit` stream using the default timeout.
+    /// Waits for the next value from the `StoreKit` stream, or for the end of the sequence.
     pub fn next(&mut self) -> Result<Option<VerificationResult<Transaction>>, StoreKitError> {
-        self.next_timeout(Duration::from_secs(30))
+        self.next_with(NO_TIMEOUT)
     }
 
     /// Waits for the next value from the `StoreKit` stream up to the supplied timeout.
@@ -579,13 +579,20 @@ impl TransactionStream {
         &mut self,
         timeout: Duration,
     ) -> Result<Option<VerificationResult<Transaction>>, StoreKitError> {
+        self.next_with(duration_to_timeout_ms(timeout))
+    }
+
+    fn next_with(
+        &mut self,
+        timeout_ms: i64,
+    ) -> Result<Option<VerificationResult<Transaction>>, StoreKitError> {
         let mut transaction_handle = ptr::null_mut();
         let mut verification_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
         let status = unsafe {
             ffi::sk_transaction_stream_next(
                 self.handle.as_ptr(),
-                duration_to_timeout_ms(timeout),
+                timeout_ms,
                 &raw mut transaction_handle,
                 &raw mut verification_json,
                 &raw mut error_message,
@@ -609,7 +616,7 @@ impl TransactionStream {
                 self.finished = true;
                 Ok(None)
             }
-            ffi::status::TIMED_OUT => Ok(None),
+            ffi::status::TIMED_OUT => Err(stream_timed_out("transaction")),
             _ => Err(unsafe { error_from_status(status, error_message) }),
         }
     }

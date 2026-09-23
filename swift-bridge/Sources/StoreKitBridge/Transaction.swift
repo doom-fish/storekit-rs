@@ -296,98 +296,42 @@ final class SKTransactionBox {
     }
 }
 
-final class SKTransactionStreamBox {
-    private let stateQueue = DispatchQueue(label: "storekit.transaction-stream")
-    private let semaphore = DispatchSemaphore(value: 0)
-    private var queue: [SKTransactionBox] = []
-    private var finished = false
-    private var task: Task<Void, Never>?
-
-    init(config: SKTransactionStreamConfig) throws {
-        guard ["all", "currentEntitlements", "updates", "unfinished", "allFor", "currentEntitlementsFor"].contains(config.kind) else {
-            throw SKBridgeError.invalidArgument("unknown transaction stream kind '\(config.kind)'")
-        }
-        task = Task { [weak self] in
-            guard let self else {
-                return
-            }
-            switch config.kind {
-            case "all":
-                await self.consume(sequence: Transaction.all, filterProductID: nil)
-            case "currentEntitlements":
-                await self.consume(sequence: Transaction.currentEntitlements, filterProductID: nil)
-            case "updates":
-                await self.consume(sequence: Transaction.updates, filterProductID: nil)
-            case "unfinished":
-                await self.consume(sequence: Transaction.unfinished, filterProductID: nil)
-            case "allFor":
-                await self.consume(sequence: Transaction.all, filterProductID: config.productID)
-            case "currentEntitlementsFor":
-                await self.consume(sequence: Transaction.currentEntitlements, filterProductID: config.productID)
-            default:
-                self.finishStream()
-            }
-        }
+func skTransactionStreamSequence(for config: SKTransactionStreamConfig) throws -> Transaction.Transactions {
+    switch config.kind {
+    case "all", "allFor":
+        return Transaction.all
+    case "currentEntitlements", "currentEntitlementsFor":
+        return Transaction.currentEntitlements
+    case "updates":
+        return Transaction.updates
+    case "unfinished":
+        return Transaction.unfinished
+    default:
+        throw SKBridgeError.invalidArgument("unknown transaction stream kind '\(config.kind)'")
     }
+}
 
-    deinit {
-        task?.cancel()
-        semaphore.signal()
+func skMakeTransactionStream(config: SKTransactionStreamConfig) throws -> SKStreamBox<SKTransactionBox> {
+    let sequence = try skTransactionStreamSequence(for: config)
+    let filterProductID: String?
+    switch config.kind {
+    case "allFor", "currentEntitlementsFor":
+        guard let productID = config.productID else {
+            throw SKBridgeError.invalidArgument("transaction stream kind '\(config.kind)' requires productID")
+        }
+        filterProductID = productID
+    default:
+        filterProductID = nil
     }
-
-    private func consume(
-        sequence: Transaction.Transactions,
-        filterProductID: String?
-    ) async {
+    return SKStreamBox { queue in
         var iterator = sequence.makeAsyncIterator()
         while !Task.isCancelled, let next = await iterator.next() {
             if let filterProductID, next.unsafePayloadValue.productID != filterProductID {
                 continue
             }
-            let box = SKTransactionBox(result: next)
-            stateQueue.sync {
-                queue.append(box)
-            }
-            semaphore.signal()
-        }
-        finishStream()
-    }
-
-    private func finishStream() {
-        stateQueue.sync {
-            finished = true
-        }
-        semaphore.signal()
-    }
-
-    func next(timeoutMilliseconds: UInt32) -> SKTransactionStreamNextState {
-        while true {
-            let state = stateQueue.sync { () -> (SKTransactionBox?, Bool) in
-                if queue.isEmpty {
-                    return (nil, finished)
-                }
-                return (queue.removeFirst(), finished)
-            }
-
-            if let next = state.0 {
-                return .item(next)
-            }
-            if state.1 {
-                return .end
-            }
-
-            let timeout = DispatchTime.now() + .milliseconds(Int(timeoutMilliseconds))
-            if semaphore.wait(timeout: timeout) == .timedOut {
-                return .timedOut
-            }
+            queue.push(SKTransactionBox(result: next))
         }
     }
-}
-
-enum SKTransactionStreamNextState {
-    case item(SKTransactionBox)
-    case end
-    case timedOut
 }
 
 @_cdecl("sk_transaction_stream_create")
@@ -397,8 +341,7 @@ public func sk_transaction_stream_create(
 ) -> UnsafeMutableRawPointer? {
     do {
         let config = try skDecodeJSON(configJSON, as: SKTransactionStreamConfig.self)
-        let stream = try SKTransactionStreamBox(config: config)
-        return sk_retain(stream)
+        return sk_retain(try skMakeTransactionStream(config: config))
     } catch {
         skPopulateError(outError, with: error)
         return nil
@@ -416,7 +359,7 @@ public func sk_transaction_stream_release(_ stream: UnsafeMutableRawPointer?) {
 @_cdecl("sk_transaction_stream_next")
 public func sk_transaction_stream_next(
     _ stream: UnsafeMutableRawPointer?,
-    _ timeoutMilliseconds: UInt32,
+    _ timeoutMilliseconds: Int64,
     _ outTransaction: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
     _ outVerificationJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
@@ -427,7 +370,7 @@ public func sk_transaction_stream_next(
         return error.statusCode
     }
 
-    let box: SKTransactionStreamBox = sk_borrow(stream)
+    let box: SKStreamBox<SKTransactionBox> = sk_borrow(stream)
     switch box.next(timeoutMilliseconds: timeoutMilliseconds) {
     case .item(let transactionBox):
         guard let json = try? skEncodeJSON(skTransactionVerificationResultPayload(from: transactionBox.result)) else {

@@ -483,6 +483,80 @@ func skBlockOnMainActorAsync<T>(
     )
 }
 
+enum SKStreamNext<Element> {
+    case item(Element)
+    case end
+    case timedOut
+}
+
+final class SKStreamQueue<Element> {
+    private let condition = NSCondition()
+    private var items: [Element] = []
+    private var finished = false
+
+    func push(_ element: Element) {
+        condition.lock()
+        if !finished {
+            items.append(element)
+        }
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    func finish() {
+        condition.lock()
+        finished = true
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    func next(timeoutMilliseconds: Int64) -> SKStreamNext<Element> {
+        let deadline = timeoutMilliseconds < 0
+            ? nil
+            : Date(timeIntervalSinceNow: TimeInterval(timeoutMilliseconds) / 1000)
+        condition.lock()
+        defer { condition.unlock() }
+        while true {
+            if !items.isEmpty {
+                return .item(items.removeFirst())
+            }
+            if finished {
+                return .end
+            }
+            if let deadline {
+                if Date() >= deadline {
+                    return .timedOut
+                }
+                _ = condition.wait(until: deadline)
+            } else {
+                condition.wait()
+            }
+        }
+    }
+}
+
+final class SKStreamBox<Element> {
+    private let queue = SKStreamQueue<Element>()
+    private var task: Task<Void, Never>?
+
+    init(produce: @escaping (SKStreamQueue<Element>) async -> Void) {
+        let queue = self.queue
+        task = Task {
+            await produce(queue)
+            queue.finish()
+        }
+    }
+
+    deinit {
+        task?.cancel()
+        queue.finish()
+    }
+
+    func next(timeoutMilliseconds: Int64) -> SKStreamNext<Element> {
+        queue.next(timeoutMilliseconds: timeoutMilliseconds)
+    }
+}
+
 func skFormatDate(_ date: Date) -> String {
     skDateFormatter.string(from: date)
 }
