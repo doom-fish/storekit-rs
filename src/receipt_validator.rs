@@ -27,7 +27,7 @@ impl ReceiptValidator {
     pub fn current_receipt() -> Result<Option<AppReceipt>, StoreKitError> {
         let mut receipt_json = core::ptr::null_mut();
         let mut error_message = core::ptr::null_mut();
-        let status = unsafe { ffi::sk_receipt_json(&mut receipt_json, &mut error_message) };
+        let status = unsafe { ffi::sk_receipt_json(&raw mut receipt_json, &raw mut error_message) };
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
         }

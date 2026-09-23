@@ -46,7 +46,7 @@ impl ExternalPurchase {
         let mut raw_value = 0;
         let mut error_message = ptr::null_mut();
         let status =
-            unsafe { ffi::sk_external_purchase_can_present(&mut raw_value, &mut error_message) };
+            unsafe { ffi::sk_external_purchase_can_present(&raw mut raw_value, &raw mut error_message) };
         if status == ffi::status::OK {
             Ok(raw_value != 0)
         } else {
@@ -60,8 +60,8 @@ impl ExternalPurchase {
         let mut error_message = ptr::null_mut();
         let status = unsafe {
             ffi::sk_external_purchase_present_notice_result_json(
-                &mut result_json,
-                &mut error_message,
+                &raw mut result_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {
@@ -87,7 +87,7 @@ impl ExternalPurchaseLink {
         let mut raw_value = 0;
         let mut error_message = ptr::null_mut();
         let status =
-            unsafe { ffi::sk_external_purchase_link_can_open(&mut raw_value, &mut error_message) };
+            unsafe { ffi::sk_external_purchase_link_can_open(&raw mut raw_value, &raw mut error_message) };
         if status == ffi::status::OK {
             Ok(raw_value != 0)
         } else {
@@ -100,7 +100,7 @@ impl ExternalPurchaseLink {
         let mut urls_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
         let status = unsafe {
-            ffi::sk_external_purchase_link_eligible_urls_json(&mut urls_json, &mut error_message)
+            ffi::sk_external_purchase_link_eligible_urls_json(&raw mut urls_json, &raw mut error_message)
         };
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
@@ -113,7 +113,7 @@ impl ExternalPurchaseLink {
     /// Opens the default `StoreKit` external purchase link.
     pub fn open() -> Result<(), StoreKitError> {
         let mut error_message = ptr::null_mut();
-        let status = unsafe { ffi::sk_external_purchase_link_open(&mut error_message) };
+        let status = unsafe { ffi::sk_external_purchase_link_open(&raw mut error_message) };
         if status == ffi::status::OK {
             Ok(())
         } else {
@@ -126,7 +126,7 @@ impl ExternalPurchaseLink {
         let url = cstring_from_str(url, "external purchase URL")?;
         let mut error_message = ptr::null_mut();
         let status =
-            unsafe { ffi::sk_external_purchase_link_open_url(url.as_ptr(), &mut error_message) };
+            unsafe { ffi::sk_external_purchase_link_open_url(url.as_ptr(), &raw mut error_message) };
         if status == ffi::status::OK {
             Ok(())
         } else {
@@ -196,7 +196,7 @@ impl ExternalPurchaseCustomLink {
         let mut raw_value = 0;
         let mut error_message = ptr::null_mut();
         let status = unsafe {
-            ffi::sk_external_purchase_custom_link_is_eligible(&mut raw_value, &mut error_message)
+            ffi::sk_external_purchase_custom_link_is_eligible(&raw mut raw_value, &raw mut error_message)
         };
         if status == ffi::status::OK {
             Ok(raw_value != 0)
@@ -220,8 +220,8 @@ impl ExternalPurchaseCustomLink {
         let status = unsafe {
             ffi::sk_external_purchase_custom_link_show_notice_result_json(
                 raw_notice_type,
-                &mut result_json,
-                &mut error_message,
+                &raw mut result_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {
@@ -246,8 +246,8 @@ impl ExternalPurchaseCustomLink {
         let status = unsafe {
             ffi::sk_external_purchase_custom_link_token_json(
                 token_type.as_ptr(),
-                &mut token_json,
-                &mut error_message,
+                &raw mut token_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {

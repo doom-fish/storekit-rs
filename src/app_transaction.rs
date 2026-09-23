@@ -41,7 +41,7 @@ impl AppTransaction {
         let mut result_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
         let status =
-            unsafe { ffi::sk_app_transaction_shared(&mut result_json, &mut error_message) };
+            unsafe { ffi::sk_app_transaction_shared(&raw mut result_json, &raw mut error_message) };
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
         }
@@ -59,7 +59,7 @@ impl AppTransaction {
         let mut result_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
         let status =
-            unsafe { ffi::sk_app_transaction_refresh(&mut result_json, &mut error_message) };
+            unsafe { ffi::sk_app_transaction_refresh(&raw mut result_json, &raw mut error_message) };
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
         }

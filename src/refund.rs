@@ -49,8 +49,8 @@ impl Refund {
         let status = unsafe {
             ffi::sk_refund_begin_request_for_transaction_id(
                 transaction_id.as_ptr(),
-                &mut status_ptr,
-                &mut error_message,
+                &raw mut status_ptr,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {

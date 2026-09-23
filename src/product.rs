@@ -104,8 +104,8 @@ impl Product {
         let status = unsafe {
             ffi::sk_products_json(
                 identifiers_json.as_ptr(),
-                &mut products_json,
-                &mut error_message,
+                &raw mut products_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {
@@ -129,9 +129,9 @@ impl Product {
             ffi::sk_product_purchase(
                 product_id.as_ptr(),
                 options_json.as_ptr(),
-                &mut transaction_handle,
-                &mut result_json,
-                &mut error_message,
+                &raw mut transaction_handle,
+                &raw mut result_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {

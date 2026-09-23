@@ -86,7 +86,7 @@ impl AppStore {
         let mut raw_value = 0;
         let mut error_message = ptr::null_mut();
         let status =
-            unsafe { ffi::sk_app_store_can_make_payments(&mut raw_value, &mut error_message) };
+            unsafe { ffi::sk_app_store_can_make_payments(&raw mut raw_value, &raw mut error_message) };
         if status == ffi::status::OK {
             Ok(raw_value != 0)
         } else {
@@ -99,7 +99,7 @@ impl AppStore {
         let mut uuid_ptr = ptr::null_mut();
         let mut error_message = ptr::null_mut();
         let status =
-            unsafe { ffi::sk_app_store_device_verification_id(&mut uuid_ptr, &mut error_message) };
+            unsafe { ffi::sk_app_store_device_verification_id(&raw mut uuid_ptr, &raw mut error_message) };
         if status == ffi::status::OK {
             Ok(unsafe { take_string(uuid_ptr) })
         } else {
@@ -110,7 +110,7 @@ impl AppStore {
     /// Calls `StoreKit.AppStore.sync()`.
     pub fn sync() -> Result<(), StoreKitError> {
         let mut error_message = ptr::null_mut();
-        let status = unsafe { ffi::sk_app_store_sync(&mut error_message) };
+        let status = unsafe { ffi::sk_app_store_sync(&raw mut error_message) };
         if status == ffi::status::OK {
             Ok(())
         } else {
@@ -121,7 +121,7 @@ impl AppStore {
     /// Calls the `StoreKit` manage-subscriptions API.
     pub fn show_manage_subscriptions() -> Result<(), StoreKitError> {
         let mut error_message = ptr::null_mut();
-        let status = unsafe { ffi::sk_app_store_show_manage_subscriptions(&mut error_message) };
+        let status = unsafe { ffi::sk_app_store_show_manage_subscriptions(&raw mut error_message) };
         if status == ffi::status::OK {
             Ok(())
         } else {
@@ -132,7 +132,7 @@ impl AppStore {
     /// Calls the `StoreKit` review-request API.
     pub fn request_review() -> Result<(), StoreKitError> {
         let mut error_message = ptr::null_mut();
-        let status = unsafe { ffi::sk_app_store_request_review(&mut error_message) };
+        let status = unsafe { ffi::sk_app_store_request_review(&raw mut error_message) };
         if status == ffi::status::OK {
             Ok(())
         } else {
@@ -144,7 +144,7 @@ impl AppStore {
     pub fn present_offer_code_redeem_sheet() -> Result<(), StoreKitError> {
         let mut error_message = ptr::null_mut();
         let status =
-            unsafe { ffi::sk_app_store_present_offer_code_redeem_sheet(&mut error_message) };
+            unsafe { ffi::sk_app_store_present_offer_code_redeem_sheet(&raw mut error_message) };
         if status == ffi::status::OK {
             Ok(())
         } else {

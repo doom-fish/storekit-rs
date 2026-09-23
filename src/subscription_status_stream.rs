@@ -47,7 +47,7 @@ impl Drop for SubscriptionStatusStream {
 impl SubscriptionStatusStream {
     fn new() -> Result<Self, StoreKitError> {
         let mut error_message = ptr::null_mut();
-        let handle = unsafe { ffi::sk_subscription_status_stream_create(&mut error_message) };
+        let handle = unsafe { ffi::sk_subscription_status_stream_create(&raw mut error_message) };
         let handle = NonNull::new(handle)
             .ok_or_else(|| unsafe { error_from_status(ffi::status::UNKNOWN, error_message) })?;
         Ok(Self {
@@ -78,8 +78,8 @@ impl SubscriptionStatusStream {
             ffi::sk_subscription_status_stream_next(
                 self.handle.as_ptr(),
                 duration_to_timeout_ms(timeout),
-                &mut status_json,
-                &mut error_message,
+                &raw mut status_json,
+                &raw mut error_message,
             )
         };
 
@@ -119,7 +119,7 @@ impl Drop for SubscriptionGroupStatusStream {
 impl SubscriptionGroupStatusStream {
     fn new() -> Result<Self, StoreKitError> {
         let mut error_message = ptr::null_mut();
-        let handle = unsafe { ffi::sk_subscription_group_status_stream_create(&mut error_message) };
+        let handle = unsafe { ffi::sk_subscription_group_status_stream_create(&raw mut error_message) };
         let handle = NonNull::new(handle)
             .ok_or_else(|| unsafe { error_from_status(ffi::status::UNKNOWN, error_message) })?;
         Ok(Self {
@@ -150,8 +150,8 @@ impl SubscriptionGroupStatusStream {
             ffi::sk_subscription_group_status_stream_next(
                 self.handle.as_ptr(),
                 duration_to_timeout_ms(timeout),
-                &mut payload_json,
-                &mut error_message,
+                &raw mut payload_json,
+                &raw mut error_message,
             )
         };
 

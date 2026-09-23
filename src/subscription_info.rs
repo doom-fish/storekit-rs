@@ -117,8 +117,8 @@ impl SubscriptionInfo {
         let status = unsafe {
             ffi::sk_subscription_info_is_eligible_for_intro_offer(
                 group_id.as_ptr(),
-                &mut raw_value,
-                &mut error_message,
+                &raw mut raw_value,
+                &raw mut error_message,
             )
         };
         if status == ffi::status::OK {
@@ -141,8 +141,8 @@ impl SubscriptionInfo {
         let status = unsafe {
             ffi::sk_subscription_info_statuses_json(
                 group_id.as_ptr(),
-                &mut statuses_json,
-                &mut error_message,
+                &raw mut statuses_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {
@@ -167,8 +167,8 @@ impl SubscriptionInfo {
         let status = unsafe {
             ffi::sk_subscription_info_status_for_transaction(
                 transaction_id.as_ptr(),
-                &mut status_json,
-                &mut error_message,
+                &raw mut status_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {

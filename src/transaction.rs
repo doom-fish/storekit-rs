@@ -384,9 +384,9 @@ impl Transaction {
         let status = unsafe {
             ffi::sk_transaction_latest_for(
                 product_id.as_ptr(),
-                &mut transaction_handle,
-                &mut result_json,
-                &mut error_message,
+                &raw mut transaction_handle,
+                &raw mut result_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {
@@ -417,9 +417,9 @@ impl Transaction {
         let status = unsafe {
             ffi::sk_transaction_current_entitlement_for(
                 product_id.as_ptr(),
-                &mut transaction_handle,
-                &mut result_json,
-                &mut error_message,
+                &raw mut transaction_handle,
+                &raw mut result_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {
@@ -466,7 +466,7 @@ impl Transaction {
             |handle| {
                 let mut error_message = ptr::null_mut();
                 let status =
-                    unsafe { ffi::sk_transaction_verify(handle.as_ptr(), &mut error_message) };
+                    unsafe { ffi::sk_transaction_verify(handle.as_ptr(), &raw mut error_message) };
                 if status == ffi::status::OK {
                     Ok(())
                 } else {
@@ -487,7 +487,7 @@ impl Transaction {
             },
             |handle| {
                 let mut error_message = ptr::null_mut();
-                let status = unsafe { ffi::sk_transaction_finish(handle.as_ptr(), &mut error_message) };
+                let status = unsafe { ffi::sk_transaction_finish(handle.as_ptr(), &raw mut error_message) };
                 if status == ffi::status::OK {
                     Ok(())
                 } else {
@@ -544,7 +544,7 @@ impl TransactionStream {
         let config_json = json_cstring(config, "transaction stream config")?;
         let mut error_message = ptr::null_mut();
         let handle =
-            unsafe { ffi::sk_transaction_stream_create(config_json.as_ptr(), &mut error_message) };
+            unsafe { ffi::sk_transaction_stream_create(config_json.as_ptr(), &raw mut error_message) };
         let handle = NonNull::new(handle)
             .ok_or_else(|| unsafe { error_from_status(ffi::status::UNKNOWN, error_message) })?;
         Ok(Self {
@@ -576,9 +576,9 @@ impl TransactionStream {
             ffi::sk_transaction_stream_next(
                 self.handle.as_ptr(),
                 duration_to_timeout_ms(timeout),
-                &mut transaction_handle,
-                &mut verification_json,
-                &mut error_message,
+                &raw mut transaction_handle,
+                &raw mut verification_json,
+                &raw mut error_message,
             )
         };
 

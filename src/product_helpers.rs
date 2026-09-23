@@ -44,9 +44,9 @@ impl Product {
                 product_id.as_ptr(),
                 window.as_raw(),
                 options_json.as_ptr(),
-                &mut transaction_handle,
-                &mut result_json,
-                &mut error_message,
+                &raw mut transaction_handle,
+                &raw mut result_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {
@@ -74,8 +74,8 @@ impl Product {
         let status = unsafe {
             ffi::sk_product_formatting_json(
                 product_id.as_ptr(),
-                &mut formatting_json,
-                &mut error_message,
+                &raw mut formatting_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {
@@ -256,8 +256,8 @@ fn localized_description(kind: &str, raw_value: &str) -> Result<String, StoreKit
         ffi::sk_localized_description(
             kind.as_ptr(),
             raw_value.as_ptr(),
-            &mut localized,
-            &mut error_message,
+            &raw mut localized,
+            &raw mut error_message,
         )
     };
     if status != ffi::status::OK {

@@ -28,7 +28,7 @@ impl Storefront {
         let mut storefront_json = ptr::null_mut();
         let mut error_message = ptr::null_mut();
         let status =
-            unsafe { ffi::sk_storefront_current_json(&mut storefront_json, &mut error_message) };
+            unsafe { ffi::sk_storefront_current_json(&raw mut storefront_json, &raw mut error_message) };
         if status != ffi::status::OK {
             return Err(unsafe { error_from_status(status, error_message) });
         }
@@ -58,7 +58,7 @@ impl Drop for StorefrontStream {
 impl StorefrontStream {
     fn new() -> Result<Self, StoreKitError> {
         let mut error_message = ptr::null_mut();
-        let handle = unsafe { ffi::sk_storefront_stream_create(&mut error_message) };
+        let handle = unsafe { ffi::sk_storefront_stream_create(&raw mut error_message) };
         let handle = NonNull::new(handle)
             .ok_or_else(|| unsafe { error_from_status(ffi::status::UNKNOWN, error_message) })?;
         Ok(Self {
@@ -86,8 +86,8 @@ impl StorefrontStream {
             ffi::sk_storefront_stream_next(
                 self.handle.as_ptr(),
                 duration_to_timeout_ms(timeout),
-                &mut storefront_json,
-                &mut error_message,
+                &raw mut storefront_json,
+                &raw mut error_message,
             )
         };
 

@@ -53,7 +53,7 @@ impl AppStore {
         let mut has_value = 0;
         let mut error_message = ptr::null_mut();
         let status = unsafe {
-            ffi::sk_app_store_age_rating_code(&mut raw_value, &mut has_value, &mut error_message)
+            ffi::sk_app_store_age_rating_code(&raw mut raw_value, &raw mut has_value, &raw mut error_message)
         };
         if status == ffi::status::OK {
             Ok((has_value != 0).then_some(raw_value))
@@ -75,9 +75,9 @@ impl AppStore {
             ffi::sk_app_store_present_merchandising(
                 kind_json.as_ptr(),
                 window.as_raw(),
-                &mut transaction_handle,
-                &mut result_json,
-                &mut error_message,
+                &raw mut transaction_handle,
+                &raw mut result_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {
@@ -123,8 +123,8 @@ impl AdvancedCommerceProduct {
         let status = unsafe {
             ffi::sk_advanced_commerce_product_json(
                 product_id.as_ptr(),
-                &mut product_json,
-                &mut error_message,
+                &raw mut product_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {
@@ -158,9 +158,9 @@ impl AdvancedCommerceProduct {
                 compact_jws.as_ptr(),
                 window.as_raw(),
                 options_json.as_ptr(),
-                &mut transaction_handle,
-                &mut result_json,
-                &mut error_message,
+                &raw mut transaction_handle,
+                &raw mut result_json,
+                &raw mut error_message,
             )
         };
         if status != ffi::status::OK {
