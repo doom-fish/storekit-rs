@@ -1,13 +1,17 @@
 //! Integration tests for the `async` feature.
 //!
-//! These tests run against the actual Swift bridge on macOS. In a headless
-//! CI environment without an App Store session, requests that require the
-//! network (products, purchases, app transaction) will fail with a framework
-//! or not-supported error — the tests assert the *error path* in those cases.
+//! These tests run against the actual Swift bridge on macOS. Requests that
+//! require the network (products, purchases, app transaction, storefront) run
+//! only with `STOREKIT_LIVE_TESTS=1`. In a headless environment without an App
+//! Store session they fail with a framework or not-supported error — the tests
+//! assert the *error path* in those cases.
 //!
 //! Tests that touch UI (`request_review`, `show_manage_subscriptions`) are also
 //! expected to fail in headless environments and are validated for the error
 //! type returned.
+
+#[cfg(feature = "async")]
+mod common;
 
 #[cfg(feature = "async")]
 mod async_tests {
@@ -17,6 +21,8 @@ mod async_tests {
     };
     use storekit::error::StoreKitError;
     use storekit::{AppStoreMerchandisingKind, NSWindowHandle, PurchaseOption};
+
+    use crate::common;
 
     #[test]
     fn window_based_ui_calls_return_sendable_futures() {
@@ -42,6 +48,9 @@ mod async_tests {
 
     #[test]
     fn products_happy_path_empty_result() {
+        if !common::live_tests_enabled("products_happy_path_empty_result") {
+            return;
+        }
         // Fetching products for an empty identifier set returns an empty vec.
         // In headless environments without an App Store connection, this may
         // also fail with a network error — that is acceptable.
@@ -60,6 +69,9 @@ mod async_tests {
 
     #[test]
     fn products_nonexistent_identifiers_returns_empty_or_error() {
+        if !common::live_tests_enabled("products_nonexistent_identifiers_returns_empty_or_error") {
+            return;
+        }
         // The App Store returns an empty list for unknown identifiers,
         // not an error. In Sandbox without a config file it may also
         // return an empty list or a framework error.
@@ -76,6 +88,9 @@ mod async_tests {
 
     #[test]
     fn purchase_missing_product_returns_error() {
+        if !common::live_tests_enabled("purchase_missing_product_returns_error") {
+            return;
+        }
         let result = pollster::block_on(async {
             AsyncPurchase::buy("com.example.does.not.exist.xyz123", &[])?.await
         });
@@ -125,6 +140,9 @@ mod async_tests {
 
     #[test]
     fn app_transaction_shared_error_or_result() {
+        if !common::live_tests_enabled("app_transaction_shared_error_or_result") {
+            return;
+        }
         let result = pollster::block_on(AsyncAppTransaction::shared());
         match result {
             Ok(_vr) => {
@@ -150,6 +168,9 @@ mod async_tests {
 
     #[test]
     fn storefront_current_returns_option() {
+        if !common::live_tests_enabled("storefront_current_returns_option") {
+            return;
+        }
         // Returns Ok(None) when not signed in, Ok(Some(...)) otherwise.
         // Should never return Err.
         let result = pollster::block_on(AsyncStorefront::current());

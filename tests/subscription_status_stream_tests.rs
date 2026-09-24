@@ -1,9 +1,14 @@
+mod common;
+
 use std::time::Duration;
 
 use storekit::{StoreKitError, SubscriptionStatus};
 
 #[test]
 fn subscription_status_streams_are_callable() {
+    if !common::live_tests_enabled("subscription_status_streams_are_callable") {
+        return;
+    }
     match SubscriptionStatus::updates() {
         Ok(mut stream) => {
             match stream.next_timeout(Duration::from_millis(1)) {

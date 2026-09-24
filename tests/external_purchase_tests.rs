@@ -1,3 +1,5 @@
+mod common;
+
 use storekit::{
     ExternalPurchase, ExternalPurchaseCustomLink, ExternalPurchaseCustomLinkNoticeResult,
     ExternalPurchaseCustomLinkNoticeType, ExternalPurchaseLink, ExternalPurchaseNoticeResult,
@@ -7,6 +9,18 @@ use storekit::{
 #[test]
 fn external_purchase_helpers_are_exposed() {
     assert_eq!(ExternalPurchaseCustomLinkNoticeType::Browser.as_raw(), 1);
+
+    let _: fn() -> Result<ExternalPurchaseNoticeResult, StoreKitError> =
+        ExternalPurchase::present_notice_sheet;
+    let _: fn(&str) -> Result<(), StoreKitError> = ExternalPurchaseLink::open_url;
+    let _: fn(
+        ExternalPurchaseCustomLinkNoticeType,
+    ) -> Result<ExternalPurchaseCustomLinkNoticeResult, StoreKitError> =
+        ExternalPurchaseCustomLink::show_notice;
+
+    if !common::live_tests_enabled("external_purchase_helpers_are_exposed") {
+        return;
+    }
 
     for result in [
         ExternalPurchase::can_present().map(|_| ()),
@@ -18,12 +32,4 @@ fn external_purchase_helpers_are_exposed() {
             Err(error) => assert!(!error.to_string().is_empty()),
         }
     }
-
-    let _: fn() -> Result<ExternalPurchaseNoticeResult, StoreKitError> =
-        ExternalPurchase::present_notice_sheet;
-    let _: fn(&str) -> Result<(), StoreKitError> = ExternalPurchaseLink::open_url;
-    let _: fn(
-        ExternalPurchaseCustomLinkNoticeType,
-    ) -> Result<ExternalPurchaseCustomLinkNoticeResult, StoreKitError> =
-        ExternalPurchaseCustomLink::show_notice;
 }

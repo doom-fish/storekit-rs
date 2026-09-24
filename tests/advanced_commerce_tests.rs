@@ -1,3 +1,5 @@
+mod common;
+
 use storekit::{
     AdvancedCommerceProduct, AdvancedCommercePurchaseOption, AppStore,
     AppStoreMerchandisingKind, AppStoreMerchandisingPresentationResult, NSWindowHandle,
@@ -16,18 +18,6 @@ fn advanced_commerce_helpers_are_exposed() {
     let option_json = serde_json::to_string(&option).expect("advanced-commerce option should serialize");
     assert!(option_json.contains("onStorefrontChange"));
 
-    match AppStore::age_rating_code() {
-        Ok(_) => {}
-        Err(error) => assert!(!error.to_string().is_empty()),
-    }
-
-    match AdvancedCommerceProduct::new("com.example.advanced") {
-        Ok(product) => {
-            let _ = product.latest_transaction();
-        }
-        Err(error) => assert!(!error.to_string().is_empty()),
-    }
-
     let _: fn(
         &AppStoreMerchandisingKind,
         &NSWindowHandle,
@@ -44,6 +34,22 @@ fn advanced_commerce_helpers_are_exposed() {
         &NSWindowHandle,
         &[AdvancedCommercePurchaseOption],
     ) -> Result<PurchaseResult, StoreKitError> = AdvancedCommerceProduct::purchase_in_window;
+
+    if !common::live_tests_enabled("advanced_commerce_helpers_are_exposed") {
+        return;
+    }
+
+    match AppStore::age_rating_code() {
+        Ok(_) => {}
+        Err(error) => assert!(!error.to_string().is_empty()),
+    }
+
+    match AdvancedCommerceProduct::new("com.example.advanced") {
+        Ok(product) => {
+            let _ = product.latest_transaction();
+        }
+        Err(error) => assert!(!error.to_string().is_empty()),
+    }
 }
 
 #[test]

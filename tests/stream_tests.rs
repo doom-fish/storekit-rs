@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
@@ -6,6 +8,9 @@ use storekit::{StoreKitError, Transaction};
 
 #[test]
 fn idle_update_stream_times_out_instead_of_ending() {
+    if !common::live_tests_enabled("idle_update_stream_times_out_instead_of_ending") {
+        return;
+    }
     let mut updates = Transaction::updates().expect("Transaction.updates stream");
     for _ in 0..3 {
         match updates.next_timeout(Duration::from_millis(50)) {
@@ -21,6 +26,9 @@ fn idle_update_stream_times_out_instead_of_ending() {
 
 #[test]
 fn finite_stream_next_waits_for_the_end_of_the_sequence() {
+    if !common::live_tests_enabled("finite_stream_next_waits_for_the_end_of_the_sequence") {
+        return;
+    }
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
         let outcome = Transaction::all().and_then(|mut stream| {
@@ -42,6 +50,9 @@ fn finite_stream_next_waits_for_the_end_of_the_sequence() {
 
 #[test]
 fn dropping_an_update_stream_while_it_is_idle_is_safe() {
+    if !common::live_tests_enabled("dropping_an_update_stream_while_it_is_idle_is_safe") {
+        return;
+    }
     for _ in 0..64 {
         let mut updates = Transaction::updates().expect("Transaction.updates stream");
         assert!(matches!(
@@ -54,6 +65,9 @@ fn dropping_an_update_stream_while_it_is_idle_is_safe() {
 
 #[test]
 fn huge_timeouts_wait_instead_of_failing() {
+    if !common::live_tests_enabled("huge_timeouts_wait_instead_of_failing") {
+        return;
+    }
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
         let mut updates = Transaction::updates().expect("Transaction.updates stream");

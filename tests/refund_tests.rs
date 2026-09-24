@@ -1,9 +1,17 @@
-use storekit::Refund;
+use storekit::{Refund, StoreKitError};
 
 #[test]
-fn refund_requests_surface_a_result_or_error() {
+fn refund_request_without_a_main_run_loop_fails_before_presenting_ui() {
+    assert_ne!(std::thread::current().name(), Some("main"));
+
     match Refund::begin_for_transaction_id(0) {
-        Ok(status) => assert!(!status.as_str().is_empty()),
-        Err(error) => assert!(!error.to_string().is_empty()),
+        Err(StoreKitError::TimedOut(message)) => {
+            assert!(message.contains("did not start"), "{message}");
+            assert!(
+                message.contains("no StoreKit UI was presented"),
+                "{message}"
+            );
+        }
+        other => panic!("expected a not-started timeout, got {other:?}"),
     }
 }
