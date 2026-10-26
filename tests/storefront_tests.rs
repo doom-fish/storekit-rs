@@ -10,9 +10,9 @@ fn storefront_query_is_safe() {
         return;
     }
     match Storefront::current() {
-        Ok(Some(storefront)) => assert!(!storefront.id.is_empty()),
+        Ok(Some(storefront)) => assert_ne!(storefront.id, ""),
         Ok(None) => {}
-        Err(error) => assert!(!error.to_string().is_empty()),
+        Err(error) => assert_ne!(error.to_string(), ""),
     }
 }
 

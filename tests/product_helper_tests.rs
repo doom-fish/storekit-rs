@@ -8,7 +8,10 @@ use storekit::{
 fn formatting_and_localization_helpers_are_exposed() {
     assert_eq!(SubscriptionPeriod::weekly().value, 1);
     assert_eq!(SubscriptionPeriod::every_six_months().value, 6);
-    assert_eq!(SubscriptionPeriod::every_six_months().unit.as_str(), "month");
+    assert_eq!(
+        SubscriptionPeriod::every_six_months().unit.as_str(),
+        "month"
+    );
 
     for result in [
         ProductType::AutoRenewable.localized_description(),
@@ -24,7 +27,7 @@ fn formatting_and_localization_helpers_are_exposed() {
     ] {
         match result {
             Ok(_) => {}
-            Err(error) => assert!(!error.to_string().is_empty()),
+            Err(error) => assert_ne!(error.to_string(), ""),
         }
     }
 }

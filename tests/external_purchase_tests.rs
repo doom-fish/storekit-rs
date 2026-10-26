@@ -29,7 +29,7 @@ fn external_purchase_helpers_are_exposed() {
     ] {
         match result {
             Ok(()) => {}
-            Err(error) => assert!(!error.to_string().is_empty()),
+            Err(error) => assert_ne!(error.to_string(), ""),
         }
     }
 }

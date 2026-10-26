@@ -1,9 +1,9 @@
 mod common;
 
 use storekit::{
-    AdvancedCommerceProduct, AdvancedCommercePurchaseOption, AppStore,
-    AppStoreMerchandisingKind, AppStoreMerchandisingPresentationResult, NSWindowHandle,
-    Product, PurchaseOption, PurchaseResult, StoreKitError,
+    AdvancedCommerceProduct, AdvancedCommercePurchaseOption, AppStore, AppStoreMerchandisingKind,
+    AppStoreMerchandisingPresentationResult, NSWindowHandle, Product, PurchaseOption,
+    PurchaseResult, StoreKitError,
 };
 
 #[test]
@@ -15,7 +15,8 @@ fn advanced_commerce_helpers_are_exposed() {
     let option = AdvancedCommercePurchaseOption::OnStorefrontChange {
         should_continue_purchase: true,
     };
-    let option_json = serde_json::to_string(&option).expect("advanced-commerce option should serialize");
+    let option_json =
+        serde_json::to_string(&option).expect("advanced-commerce option should serialize");
     assert!(option_json.contains("onStorefrontChange"));
 
     let _: fn(
@@ -41,14 +42,14 @@ fn advanced_commerce_helpers_are_exposed() {
 
     match AppStore::age_rating_code() {
         Ok(_) => {}
-        Err(error) => assert!(!error.to_string().is_empty()),
+        Err(error) => assert_ne!(error.to_string(), ""),
     }
 
     match AdvancedCommerceProduct::new("com.example.advanced") {
         Ok(product) => {
             let _ = product.latest_transaction();
         }
-        Err(error) => assert!(!error.to_string().is_empty()),
+        Err(error) => assert_ne!(error.to_string(), ""),
     }
 }
 

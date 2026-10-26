@@ -333,10 +333,10 @@ impl SubscriptionStatusPayload {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
     use crate::subscription::{
         SubscriptionOfferType, SubscriptionPaymentMode, SubscriptionPeriodUnit,
     };
+    use serde_json::json;
 
     #[test]
     fn billing_plan_types_round_trip_known_values() {
@@ -355,7 +355,10 @@ mod tests {
     fn unknown_billing_plan_type_is_preserved() {
         let billing_plan_type = BillingPlanType::from_raw("seasonal".to_owned());
 
-        assert_eq!(billing_plan_type, BillingPlanType::Unknown("seasonal".into()));
+        assert_eq!(
+            billing_plan_type,
+            BillingPlanType::Unknown("seasonal".into())
+        );
         assert_eq!(billing_plan_type.as_str(), "seasonal");
     }
 
@@ -450,6 +453,6 @@ mod tests {
         );
         assert_eq!(info.group_level, Some(2));
         assert_eq!(info.group_display_name.as_deref(), Some("Pro"));
-        assert!(info.pricing_terms.is_empty());
+        assert_eq!(info.pricing_terms.len(), 0);
     }
 }

@@ -8,7 +8,7 @@ fn app_transaction_queries_are_safe() {
         return;
     }
     match AppTransaction::shared() {
-        Ok(result) => assert!(!result.unverified_payload().bundle_id.is_empty()),
-        Err(error) => assert!(!error.to_string().is_empty()),
+        Ok(result) => assert_ne!(result.unverified_payload().bundle_id, ""),
+        Err(error) => assert_ne!(error.to_string(), ""),
     }
 }

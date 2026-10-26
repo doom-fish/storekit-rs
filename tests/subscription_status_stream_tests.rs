@@ -17,7 +17,7 @@ fn subscription_status_streams_are_callable() {
             }
             assert!(!stream.is_finished());
         }
-        Err(error) => assert!(!error.to_string().is_empty()),
+        Err(error) => assert_ne!(error.to_string(), ""),
     }
 
     match SubscriptionStatus::all() {
